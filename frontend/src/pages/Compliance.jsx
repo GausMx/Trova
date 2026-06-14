@@ -27,14 +27,14 @@ export default function Compliance() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto font-sans">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Compliance Tracking</h2>
           <p className="text-slate-500 text-sm mt-0.5">Track statutory deadlines and obligations for PAYE, PENCOM, NSITF, and ITF</p>
         </div>
         <button
           onClick={handleRefresh}
-          className="flex items-center space-x-2 px-3.5 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
+          className="flex items-center space-x-2 px-3.5 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition-colors self-start sm:self-auto"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           <span>Refresh Obligations</span>

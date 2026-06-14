@@ -98,7 +98,7 @@ export default function Payroll() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto font-sans">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Payroll Processing</h2>
           <p className="text-slate-500 text-sm mt-0.5">Calculate salaries, apply PITA tax reliefs, and manage payouts</p>
@@ -285,40 +285,42 @@ export default function Payroll() {
               <div className="space-y-3">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Employee Breakdown</h4>
                 <div className="border border-slate-100 rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
-                        <th className="px-4 py-3">Employee</th>
-                        <th className="px-4 py-3">Gross Salary</th>
-                        <th className="px-4 py-3 text-rose-600">PAYE Tax</th>
-                        <th className="px-4 py-3 text-rose-600">Pension</th>
-                        <th className="px-4 py-3 text-rose-600">NHF</th>
-                        <th className="px-4 py-3 text-forest-700">Net Pay</th>
-                        <th className="px-4 py-3 text-right">Payslip</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {selectedRunDetails.employees?.map((record) => (
-                        <tr key={record.employeeId} className="hover:bg-slate-50/30 transition-colors">
-                          <td className="px-4 py-3 font-semibold text-slate-800">{record.name}</td>
-                          <td className="px-4 py-3">₦{Number(record.grossSalary).toLocaleString()}</td>
-                          <td className="px-4 py-3 text-rose-700">₦{Number(record.taxDeduction || 0).toLocaleString()}</td>
-                          <td className="px-4 py-3 text-rose-700">₦{Number(record.pensionDeduction || 0).toLocaleString()}</td>
-                          <td className="px-4 py-3 text-rose-700">₦{Number(record.nhfDeduction || 0).toLocaleString()}</td>
-                          <td className="px-4 py-3 font-semibold text-forest-700">₦{Number(record.netSalary).toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              onClick={() => handleDownloadPayslip(selectedRunDetails._id, record.employeeId, record.name)}
-                              className="inline-flex items-center space-x-1 px-2.5 py-1 bg-forest-50 text-forest-700 rounded hover:bg-forest-100 font-medium transition-colors"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                              <span>PDF</span>
-                            </button>
-                          </td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[700px] text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                          <th className="px-4 py-3">Employee</th>
+                          <th className="px-4 py-3">Gross Salary</th>
+                          <th className="px-4 py-3 text-rose-600">PAYE Tax</th>
+                          <th className="px-4 py-3 text-rose-600">Pension</th>
+                          <th className="px-4 py-3 text-rose-600">NHF</th>
+                          <th className="px-4 py-3 text-forest-700">Net Pay</th>
+                          <th className="px-4 py-3 text-right">Payslip</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {selectedRunDetails.employees?.map((record) => (
+                          <tr key={record.employeeId} className="hover:bg-slate-50/30 transition-colors">
+                            <td className="px-4 py-3 font-semibold text-slate-800">{record.name}</td>
+                            <td className="px-4 py-3">₦{Number(record.grossSalary).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-rose-700">₦{Number(record.taxDeduction || 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-rose-700">₦{Number(record.pensionDeduction || 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-rose-700">₦{Number(record.nhfDeduction || 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 font-semibold text-forest-700">₦{Number(record.netSalary).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                onClick={() => handleDownloadPayslip(selectedRunDetails._id, record.employeeId, record.name)}
+                                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-forest-50 text-forest-700 rounded hover:bg-forest-100 font-medium transition-colors"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>PDF</span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </>

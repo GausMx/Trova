@@ -80,7 +80,7 @@ export default function Employees() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto font-sans">
       {/* Header and Add button */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Employee Management</h2>
           <p className="text-slate-500 text-sm mt-0.5">Manage and view your company staff profiles</p>
@@ -88,7 +88,7 @@ export default function Employees() {
         {isStaffManager && (
           <button
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center space-x-2 px-4 py-2.5 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+            className="flex items-center space-x-2 px-4 py-2.5 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm self-start sm:self-auto"
           >
             <Plus className="w-4 h-4" />
             <span>Add Employee</span>
@@ -131,7 +131,7 @@ export default function Employees() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+            <table className="w-full min-w-[800px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider text-xs">
                   <th className="px-6 py-4">Name</th>
@@ -192,7 +192,7 @@ export default function Employees() {
 
       {/* Add Employee Modal Overlay */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6">
           <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
@@ -206,7 +206,7 @@ export default function Employees() {
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="p-4 sm:p-6 space-y-4 sm:space-y-6">
               {/* Section: Personal Info */}
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-wider text-forest-700 mb-3 border-b border-slate-100 pb-1">

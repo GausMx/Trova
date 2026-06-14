@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/authStore';
@@ -9,7 +9,7 @@ import Employees from './pages/Employees';
 import Payroll from './pages/Payroll';
 import Compliance from './pages/Compliance';
 import Billing from './pages/Billing';
-import { LayoutDashboard, Users, CreditCard, ShieldCheck, LogOut, Briefcase, Receipt } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, ShieldCheck, LogOut, Briefcase, Receipt, Menu, X } from 'lucide-react';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,6 +34,7 @@ const MainLayout = ({ children }) => {
   const { user, clearAuth } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleLogout = () => {
     clearAuth();
@@ -53,15 +54,35 @@ const MainLayout = ({ children }) => {
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+      {/* Sidebar Drawer Backdrop for Mobile */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-forest-900 text-white flex flex-col justify-between shrink-0">
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-forest-900 text-white flex flex-col justify-between transition-transform duration-300 ease-in-out shrink-0 md:static md:translate-x-0 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
         <div>
           {/* Logo Brand */}
-          <div className="p-6 border-b border-forest-800 flex items-center space-x-3">
-            <div className="w-8 h-8 bg-white text-forest-900 rounded-lg flex items-center justify-center font-bold text-lg">
-              T
+          <div className="p-6 border-b border-forest-800 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-white text-forest-900 rounded-lg flex items-center justify-center font-bold text-lg">
+                T
+              </div>
+              <span className="text-xl font-bold tracking-wider">TROVA</span>
             </div>
-            <span className="text-xl font-bold tracking-wider">TROVA</span>
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="p-1 text-forest-200 hover:text-white rounded-lg md:hidden"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
           {/* Navigation Links */}
@@ -73,6 +94,7 @@ const MainLayout = ({ children }) => {
                 <Link
                   key={item.name}
                   to={item.path}
+                  onClick={() => setIsSidebarOpen(false)}
                   className={`flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-150 ${
                     isActive
                       ? 'bg-white/10 text-white font-semibold'
@@ -105,7 +127,10 @@ const MainLayout = ({ children }) => {
             </div>
           </div>
           <button
-            onClick={handleLogout}
+            onClick={() => {
+              setIsSidebarOpen(false);
+              handleLogout();
+            }}
             className="w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-medium text-red-200 hover:bg-red-900/20 hover:text-red-100 transition-colors"
           >
             <LogOut className="w-4 h-4 shrink-0" />
@@ -117,10 +142,18 @@ const MainLayout = ({ children }) => {
       {/* Main Content Area */}
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
-          <h1 className="text-lg font-bold text-slate-800 capitalize">
-            {location.pathname.split('/')[1] || 'Dashboard'}
-          </h1>
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 shrink-0">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg md:hidden"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <h1 className="text-lg font-bold text-slate-800 capitalize">
+              {location.pathname.split('/')[1] || 'Dashboard'}
+            </h1>
+          </div>
           <div className="flex items-center space-x-4">
             <span className="text-xs bg-forest-50 text-forest-700 px-3 py-1 rounded-full font-medium border border-forest-100">
               Corporate Account
@@ -129,7 +162,7 @@ const MainLayout = ({ children }) => {
         </header>
 
         {/* Page Container */}
-        <main className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50">
           {children}
         </main>
       </div>
