@@ -89,7 +89,17 @@ export default function Payroll() {
       link.parentNode.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert('Unable to generate payslip PDF. Make sure Puppeteer is installed and configured on the server.');
+      let errMsg = err.message;
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          if (json.message) errMsg = json.message;
+        } catch (_) {}
+      } else if (err.response?.data?.message) {
+        errMsg = err.response.data.message;
+      }
+      alert(`Unable to generate payslip PDF: ${errMsg}`);
     }
   };
 
