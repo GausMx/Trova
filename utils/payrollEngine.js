@@ -20,7 +20,7 @@ const round = (num) => {
  * 
  * @returns {Object} Calculated payroll breakdown
  */
-const calculateMonthlyPayroll = (employee) => {
+const calculateMonthlyPayroll = (employee, attendance = null) => {
   const {
     basicSalary = 0,
     housingAllowance = 0,
@@ -28,8 +28,39 @@ const calculateMonthlyPayroll = (employee) => {
     otherAllowances = 0
   } = employee;
 
+  const standardGross = basicSalary + housingAllowance + transportAllowance + otherAllowances;
+
+  let basic = basicSalary;
+  let housing = housingAllowance;
+  let transport = transportAllowance;
+  let other = otherAllowances;
+  let gross = standardGross;
+
+  let workingDays = 0;
+  let daysAbsent = 0;
+  let halfDays = 0;
+  let daysWorked = 0;
+
+  if (attendance) {
+    workingDays = attendance.workingDaysInMonth || 0;
+    daysAbsent = attendance.daysAbsent || 0;
+    halfDays = attendance.halfDays || 0;
+    
+    if (workingDays > 0 && (daysAbsent > 0 || halfDays > 0)) {
+      daysWorked = Math.max(0, workingDays - daysAbsent - (halfDays * 0.5));
+      const factor = daysWorked / workingDays;
+      basic = basicSalary * factor;
+      housing = housingAllowance * factor;
+      transport = transportAllowance * factor;
+      other = otherAllowances * factor;
+      gross = standardGross * factor;
+    } else {
+      daysWorked = workingDays;
+    }
+  }
+
   // 1. Calculate Monthly & Annual Gross Income
-  const monthlyGross = basicSalary + housingAllowance + transportAllowance + otherAllowances;
+  const monthlyGross = gross;
   const annualGross = monthlyGross * 12;
 
   // If Gross Income is 0, return zeroed deductions
@@ -45,17 +76,22 @@ const calculateMonthlyPayroll = (employee) => {
       annualTaxableIncome: 0,
       annualTax: 0,
       monthlyTax: 0,
-      monthlyNet: 0
+      monthlyNet: 0,
+      workingDays,
+      daysAbsent,
+      halfDays,
+      daysWorked,
+      proratedGross: 0
     };
   }
 
   // 2. Calculate Pension (8% of Basic + Housing + Transport)
-  const monthlyPensionBase = basicSalary + housingAllowance + transportAllowance;
+  const monthlyPensionBase = basic + housing + transport;
   const monthlyPension = monthlyPensionBase * PENSION.EMPLOYEE_RATE;
   const annualPension = monthlyPension * 12;
 
   // 3. Calculate NHF (2.5% of Basic)
-  const monthlyNhf = basicSalary * NHF.EMPLOYEE_RATE;
+  const monthlyNhf = basic * NHF.EMPLOYEE_RATE;
   const annualNhf = monthlyNhf * 12;
 
   // 4. Calculate Consolidated Relief Allowance (CRA)
@@ -102,10 +138,36 @@ const calculateMonthlyPayroll = (employee) => {
     annualTaxableIncome: round(annualTaxableIncome),
     annualTax: round(annualTax),
     monthlyTax: round(monthlyTax),
-    monthlyNet: round(monthlyNet)
+    monthlyNet: round(monthlyNet),
+    workingDays,
+    daysAbsent,
+    halfDays,
+    daysWorked: round(daysWorked),
+    proratedGross: round(monthlyGross)
   };
 };
 
+/**
+ * Calculates total working days in a given month/year, excluding Saturdays and Sundays.
+ * Month is 1-indexed (1 = Jan, 12 = Dec).
+ */
+const getWorkingDays = (month, year) => {
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0); // Last day of month
+  const numDays = endDate.getDate();
+  let workingDays = 0;
+  
+  for (let day = 1; day <= numDays; day++) {
+    const date = new Date(year, month - 1, day);
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      workingDays++;
+    }
+  }
+  return workingDays;
+};
+
 module.exports = {
-  calculateMonthlyPayroll
+  calculateMonthlyPayroll,
+  getWorkingDays
 };

@@ -58,6 +58,14 @@ const EmployeeSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    gradeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'SalaryGrade'
+    },
+    salaryOverridden: {
+      type: Boolean,
+      default: false
+    },
     // Bank details
     bankName: {
       type: String,

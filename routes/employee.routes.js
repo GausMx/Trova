@@ -30,6 +30,7 @@ const employeeValidationRules = [
     .optional({ checkFalsy: true })
     .trim(),
   body('basicSalary')
+    .optional()
     .isFloat({ min: 0 })
     .withMessage('Basic salary must be a positive number'),
   body('housingAllowance')
@@ -54,7 +55,11 @@ const employeeValidationRules = [
     .withMessage('Account number must be a 10-digit Nigerian NUBAN number'),
   body('accountName')
     .optional()
-    .trim()
+    .trim(),
+  body('gradeId')
+    .optional({ checkFalsy: true })
+    .isMongoId()
+    .withMessage('Invalid salary grade ID format')
 ];
 
 const employeeUpdateValidationRules = [
@@ -65,7 +70,8 @@ const employeeUpdateValidationRules = [
   body('housingAllowance').optional().isFloat({ min: 0 }).withMessage('Housing allowance must be a positive number'),
   body('transportAllowance').optional().isFloat({ min: 0 }).withMessage('Transport allowance must be a positive number'),
   body('otherAllowances').optional().isFloat({ min: 0 }).withMessage('Other allowances must be a positive number'),
-  body('accountNumber').optional({ checkFalsy: true }).isLength({ min: 10, max: 10 }).isNumeric().withMessage('Account number must be a 10-digit Nigerian NUBAN number')
+  body('accountNumber').optional({ checkFalsy: true }).isLength({ min: 10, max: 10 }).isNumeric().withMessage('Account number must be a 10-digit Nigerian NUBAN number'),
+  body('gradeId').optional({ checkFalsy: true }).isMongoId().withMessage('Invalid salary grade ID format')
 ];
 
 // GET / -> List employees
@@ -79,6 +85,9 @@ router.get('/:id', restrictTo('owner', 'admin', 'hr', 'finance'), employeeContro
 
 // PUT /:id -> Update employee details (Owner, Admin, and HR only)
 router.put('/:id', restrictTo('owner', 'admin', 'hr'), employeeUpdateValidationRules, validate, employeeController.updateEmployee);
+
+// PUT /:id/reset-salary -> Reset employee salary to grade defaults (Owner, Admin, and HR only)
+router.put('/:id/reset-salary', restrictTo('owner', 'admin', 'hr'), employeeController.resetEmployeeSalary);
 
 // DELETE /:id -> Soft delete employee (Owner, Admin, and HR only)
 router.delete('/:id', restrictTo('owner', 'admin', 'hr'), employeeController.deleteEmployee);

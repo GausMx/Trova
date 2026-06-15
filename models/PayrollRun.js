@@ -21,6 +21,12 @@ const PayrollEmployeeSchema = new mongoose.Schema({
   transportAllowance: { type: Number, default: 0 },
   otherAllowances: { type: Number, default: 0 },
   grossSalary: { type: Number, required: true },
+  // Attendance & Proration
+  workingDaysInMonth: { type: Number, required: true },
+  daysAbsent: { type: Number, default: 0 },
+  halfDays: { type: Number, default: 0 },
+  daysWorked: { type: Number, required: true },
+  proratedGross: { type: Number, required: true },
   // Deductions (Monthly)
   taxDeduction: { type: Number, required: true },
   pensionDeduction: { type: Number, required: true },

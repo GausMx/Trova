@@ -3,13 +3,22 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/authStore';
 import api from '../utils/api';
-import { CreditCard, Calendar, Plus, ChevronRight, FileDown, CheckCircle, Wallet, Download } from 'lucide-react';
+import { CreditCard, Calendar, Plus, ChevronRight, CheckCircle, Wallet, Download, Upload, Save, AlertCircle, FileText, CheckCircle2 } from 'lucide-react';
 
 export default function Payroll() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const [selectedRunId, setSelectedRunId] = useState(null);
+  const [detailsTab, setDetailsTab] = useState('breakdown'); // 'breakdown' or 'attendance'
   const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  // CSV upload state
+  const [csvFile, setCsvFile] = useState(null);
+  const [isCsvUploading, setIsCsvUploading] = useState(false);
+
+  // Manual attendance edits state
+  const [attendanceEdits, setAttendanceEdits] = useState({});
 
   const canCompute = ['owner', 'admin', 'finance'].includes(user?.role);
   const canApprove = ['owner', 'admin', 'finance'].includes(user?.role);
@@ -21,7 +30,7 @@ export default function Payroll() {
     queryFn: () => api.get('/payroll').then((res) => res.data),
   });
 
-  // 2. Fetch specific payroll run details (with employee sub-records)
+  // 2. Fetch specific payroll run details
   const { data: selectedRunRes, isLoading: loadingDetails } = useQuery({
     queryKey: ['payrollRunDetails', selectedRunId],
     queryFn: () => api.get(`/payroll/${selectedRunId}`).then((res) => res.data),
@@ -33,8 +42,11 @@ export default function Payroll() {
     mutationFn: (payload) => api.post('/payroll/compute', payload),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['payrollRuns'] });
-      setSelectedRunId(res.data.data._id);
+      setSelectedRunId(res.data.data.run._id);
       setErrorMsg('');
+      setAttendanceEdits({});
+      setSuccessMsg('Payroll run draft computed successfully.');
+      setTimeout(() => setSuccessMsg(''), 4000);
     },
     onError: (err) => {
       setErrorMsg(err.response?.data?.message || 'Failed to compute payroll. Ensure employees exist.');
@@ -47,6 +59,8 @@ export default function Payroll() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payrollRuns'] });
       queryClient.invalidateQueries({ queryKey: ['payrollRunDetails', selectedRunId] });
+      setSuccessMsg('Payroll run approved successfully.');
+      setTimeout(() => setSuccessMsg(''), 4000);
     },
   });
 
@@ -56,6 +70,8 @@ export default function Payroll() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payrollRuns'] });
       queryClient.invalidateQueries({ queryKey: ['payrollRunDetails', selectedRunId] });
+      setSuccessMsg('Payroll processed as paid successfully.');
+      setTimeout(() => setSuccessMsg(''), 4000);
     },
   });
 
@@ -73,7 +89,6 @@ export default function Payroll() {
     });
   };
 
-  // Safe file downloader using JWT headers
   const handleDownloadPayslip = async (runId, employeeId, name) => {
     try {
       const response = await api.get(`/payroll/${runId}/payslip/${employeeId}`, {
@@ -103,6 +118,69 @@ export default function Payroll() {
     }
   };
 
+  const handleAttendanceChange = (employeeId, field, val) => {
+    const parsedVal = val === '' ? 0 : Number(val);
+    setAttendanceEdits(prev => {
+      const current = prev[employeeId] || {
+        employeeId,
+        daysAbsent: 0,
+        halfDays: 0
+      };
+      return {
+        ...prev,
+        [employeeId]: {
+          ...current,
+          [field]: parsedVal
+        }
+      };
+    });
+  };
+
+  const handleSaveAttendance = async () => {
+    const updates = Object.values(attendanceEdits);
+    if (updates.length === 0) return;
+    
+    try {
+      const res = await api.post(`/payroll/${selectedRunId}/attendance`, { attendance: updates });
+      if (res.data.success) {
+        queryClient.invalidateQueries({ queryKey: ['payrollRunDetails', selectedRunId] });
+        queryClient.invalidateQueries({ queryKey: ['payrollRuns'] });
+        setAttendanceEdits({});
+        setSuccessMsg('Attendance updated and payroll figures recalculated.');
+        setTimeout(() => setSuccessMsg(''), 4000);
+      }
+    } catch (err) {
+      alert(`Failed to save attendance updates: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  const handleCsvUpload = async (e) => {
+    e.preventDefault();
+    if (!csvFile) return;
+    setIsCsvUploading(true);
+
+    const formData = new FormData();
+    formData.append('file', csvFile);
+
+    try {
+      const res = await api.post(`/payroll/${selectedRunId}/attendance/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.data.success) {
+        queryClient.invalidateQueries({ queryKey: ['payrollRunDetails', selectedRunId] });
+        queryClient.invalidateQueries({ queryKey: ['payrollRuns'] });
+        setCsvFile(null);
+        const stats = res.data.data.summary;
+        setSuccessMsg(`CSV uploaded successfully! Updated: ${stats.updated.length} employee records. Errors: ${stats.errors.length}.`);
+        setTimeout(() => setSuccessMsg(''), 5000);
+      }
+    } catch (err) {
+      alert(`Failed to upload attendance CSV: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsCsvUploading(false);
+    }
+  };
+
   const runs = runsRes?.data?.runs || [];
   const selectedRunDetails = selectedRunRes?.data?.run;
 
@@ -110,14 +188,22 @@ export default function Payroll() {
     <div className="space-y-6 max-w-7xl mx-auto font-sans">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Payroll Processing</h2>
-          <p className="text-slate-500 text-sm mt-0.5">Calculate salaries, apply PITA tax reliefs, and manage payouts</p>
+          <h2 className="text-xl font-bold text-slate-800">Payroll & Attendance Workspace</h2>
+          <p className="text-slate-500 text-sm mt-0.5">Calculate monthly salaries, record absences, review proration percentages, and print payslips</p>
         </div>
       </div>
 
+      {successMsg && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-sm flex items-center space-x-2 shadow-sm">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
       {errorMsg && (
-        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-          {errorMsg}
+        <div className="p-4 bg-red-50 border border-red-200 text-red-750 rounded-lg text-sm flex items-center space-x-2 shadow-sm">
+          <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+          <span>{errorMsg}</span>
         </div>
       )}
 
@@ -183,11 +269,14 @@ export default function Payroll() {
               <p className="text-xs text-slate-400 mt-1">Compute a month above to start.</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 max-h-[350px] overflow-y-auto pr-1">
               {runs.map((run) => (
                 <div
                   key={run._id}
-                  onClick={() => setSelectedRunId(run._id)}
+                  onClick={() => {
+                    setSelectedRunId(run._id);
+                    setAttendanceEdits({});
+                  }}
                   className={`py-3.5 flex items-center justify-between cursor-pointer hover:bg-slate-50/50 px-2 rounded-xl transition-colors ${
                     selectedRunId === run._id ? 'bg-forest-50/50 hover:bg-forest-50' : ''
                   }`}
@@ -200,9 +289,9 @@ export default function Payroll() {
                       <span
                         className={`px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider text-[10px] ${
                           run.status === 'paid'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-250'
                             : run.status === 'approved'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            ? 'bg-amber-50 text-amber-750 border border-amber-200'
                             : 'bg-slate-100 text-slate-600 border border-slate-200'
                         }`}
                       >
@@ -214,7 +303,7 @@ export default function Payroll() {
                   <div className="flex items-center space-x-4">
                     <div className="text-right">
                       <p className="font-bold text-slate-800">₦{Number(run.totals?.net || 0).toLocaleString()}</p>
-                      <p className="text-[10px] text-slate-400 uppercase font-semibold">Net Payroll</p>
+                      <p className="text-[10px] text-slate-400 uppercase font-semibold">Net Payouts</p>
                     </div>
                     <ChevronRight className="w-5 h-5 text-slate-400" />
                   </div>
@@ -241,7 +330,7 @@ export default function Payroll() {
                     Payroll Run Details — {new Date(2000, selectedRunDetails.month - 1).toLocaleString('default', { month: 'long' })} {selectedRunDetails.year}
                   </h3>
                   <p className="text-slate-500 text-xs mt-1">
-                    Processed by: {selectedRunDetails.processedBy?.firstName} {selectedRunDetails.processedBy?.lastName}
+                    Status: <span className="capitalize font-bold text-forest-800">{selectedRunDetails.status}</span>
                   </p>
                 </div>
 
@@ -291,48 +380,215 @@ export default function Payroll() {
                 </div>
               </div>
 
-              {/* Employees Breakdown */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Employee Breakdown</h4>
-                <div className="border border-slate-100 rounded-xl overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[700px] text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
-                          <th className="px-4 py-3">Employee</th>
-                          <th className="px-4 py-3">Gross Salary</th>
-                          <th className="px-4 py-3 text-rose-600">PAYE Tax</th>
-                          <th className="px-4 py-3 text-rose-600">Pension</th>
-                          <th className="px-4 py-3 text-rose-600">NHF</th>
-                          <th className="px-4 py-3 text-forest-700">Net Pay</th>
-                          <th className="px-4 py-3 text-right">Payslip</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {selectedRunDetails.employees?.map((record) => (
-                          <tr key={record.employeeId} className="hover:bg-slate-50/30 transition-colors">
-                            <td className="px-4 py-3 font-semibold text-slate-800">{record.name}</td>
-                            <td className="px-4 py-3">₦{Number(record.grossSalary).toLocaleString()}</td>
-                            <td className="px-4 py-3 text-rose-700">₦{Number(record.taxDeduction || 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 text-rose-700">₦{Number(record.pensionDeduction || 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 text-rose-700">₦{Number(record.nhfDeduction || 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 font-semibold text-forest-700">₦{Number(record.netSalary).toLocaleString()}</td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                onClick={() => handleDownloadPayslip(selectedRunDetails._id, record.employeeId, record.name)}
-                                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-forest-50 text-forest-700 rounded hover:bg-forest-100 font-medium transition-colors"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                                <span>PDF</span>
-                              </button>
-                            </td>
+              {/* Sub-tab selection */}
+              <div className="flex border-b border-slate-100">
+                <button
+                  onClick={() => setDetailsTab('breakdown')}
+                  className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${
+                    detailsTab === 'breakdown'
+                      ? 'border-forest-800 text-forest-800'
+                      : 'border-transparent text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  <span className="flex items-center space-x-1.5">
+                    <FileText className="w-4 h-4" />
+                    <span>Compensation Breakdown</span>
+                  </span>
+                </button>
+                <button
+                  onClick={() => setDetailsTab('attendance')}
+                  className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${
+                    detailsTab === 'attendance'
+                      ? 'border-forest-800 text-forest-800'
+                      : 'border-transparent text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  <span className="flex items-center space-x-1.5">
+                    <Upload className="w-4 h-4" />
+                    <span>Attendance & Proration Sheet</span>
+                  </span>
+                </button>
+              </div>
+
+              {/* Sub-tab: Compensation Breakdown */}
+              {detailsTab === 'breakdown' && (
+                <div className="space-y-3">
+                  <div className="border border-slate-100 rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[700px] text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                            <th className="px-4 py-3">Employee</th>
+                            <th className="px-4 py-3">Gross Salary</th>
+                            <th className="px-4 py-3 text-rose-600">PAYE Tax</th>
+                            <th className="px-4 py-3 text-rose-600">Pension</th>
+                            <th className="px-4 py-3 text-rose-600">NHF</th>
+                            <th className="px-4 py-3 text-forest-700">Net Pay</th>
+                            <th className="px-4 py-3 text-right">Payslip</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {selectedRunDetails.employees?.map((record) => (
+                            <tr key={record.employeeId} className="hover:bg-slate-50/30 transition-colors">
+                              <td className="px-4 py-3 font-semibold text-slate-800">
+                                <p>{record.name}</p>
+                                {record.workingDaysInMonth > 0 && record.daysWorked < record.workingDaysInMonth && (
+                                  <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1 py-0.5 rounded font-bold uppercase tracking-wide">Prorated</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <p className="font-semibold">₦{Number(record.proratedGross !== undefined ? record.proratedGross : record.grossSalary).toLocaleString()}</p>
+                                {record.workingDaysInMonth > 0 && record.daysWorked < record.workingDaysInMonth && (
+                                  <span className="text-[9px] text-slate-400 block">Base: ₦{Number(record.grossSalary).toLocaleString()}</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-rose-700">₦{Number(record.taxDeduction || 0).toLocaleString()}</td>
+                              <td className="px-4 py-3 text-rose-700">₦{Number(record.pensionDeduction || 0).toLocaleString()}</td>
+                              <td className="px-4 py-3 text-rose-700">₦{Number(record.nhfDeduction || 0).toLocaleString()}</td>
+                              <td className="px-4 py-3 font-semibold text-forest-700">₦{Number(record.netSalary).toLocaleString()}</td>
+                              <td className="px-4 py-3 text-right">
+                                <button
+                                  onClick={() => handleDownloadPayslip(selectedRunDetails._id, record.employeeId, record.name)}
+                                  className="inline-flex items-center space-x-1 px-2.5 py-1 bg-forest-50 text-forest-700 rounded hover:bg-forest-100 font-medium transition-colors"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>PDF</span>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {/* Sub-tab: Attendance Sheet & Proration */}
+              {detailsTab === 'attendance' && (
+                <div className="space-y-4">
+                  {/* CSV Upload & Manual Save Action Header */}
+                  {selectedRunDetails.status === 'draft' && canCompute && (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-slate-50 border border-slate-100 rounded-xl">
+                      {/* CSV upload form */}
+                      <form onSubmit={handleCsvUpload} className="flex items-center space-x-2">
+                        <label className="flex items-center space-x-2 bg-white px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-650 hover:bg-slate-50 cursor-pointer shadow-sm">
+                          <Upload className="w-3.5 h-3.5 text-forest-800" />
+                          <span>{csvFile ? csvFile.name : 'Select Attendance CSV'}</span>
+                          <input
+                            type="file"
+                            accept=".csv"
+                            className="hidden"
+                            onChange={(e) => setCsvFile(e.target.files[0])}
+                          />
+                        </label>
+                        {csvFile && (
+                          <button
+                            type="submit"
+                            disabled={isCsvUploading}
+                            className="px-3 py-1.5 bg-forest-900 text-white text-xs font-semibold rounded-lg hover:bg-forest-800 transition-all shadow-sm"
+                          >
+                            {isCsvUploading ? 'Uploading...' : 'Upload'}
+                          </button>
+                        )}
+                      </form>
+
+                      {/* Manual update save */}
+                      {Object.keys(attendanceEdits).length > 0 && (
+                        <button
+                          onClick={handleSaveAttendance}
+                          className="flex items-center space-x-1 px-4 py-2 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-xs font-bold transition-all shadow-md"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Save Manual Changes ({Object.keys(attendanceEdits).length})</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="border border-slate-100 rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[700px] text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                            <th className="px-4 py-3">Employee</th>
+                            <th className="px-4 py-3">Working Days in Month</th>
+                            <th className="px-4 py-3 text-rose-600">Days Absent</th>
+                            <th className="px-4 py-3 text-orange-600">Half Days</th>
+                            <th className="px-4 py-3 text-forest-750">Days Worked</th>
+                            <th className="px-4 py-3">Earned Gross Rate</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {selectedRunDetails.employees?.map((record) => {
+                            const isDraft = selectedRunDetails.status === 'draft';
+                            const edits = attendanceEdits[record.employeeId] || {};
+                            const daysAbsentVal = edits.daysAbsent !== undefined ? edits.daysAbsent : record.daysAbsent;
+                            const halfDaysVal = edits.halfDays !== undefined ? edits.halfDays : record.halfDays;
+
+                            const computedWorked = Math.max(0, record.workingDaysInMonth - daysAbsentVal - (halfDaysVal * 0.5));
+                            const computedRate = record.workingDaysInMonth > 0 
+                              ? Math.round((computedWorked / record.workingDaysInMonth) * 100) 
+                              : 100;
+
+                            return (
+                              <tr key={record.employeeId} className="hover:bg-slate-50/30 transition-colors">
+                                <td className="px-4 py-3 font-semibold text-slate-800">
+                                  <p>{record.name}</p>
+                                  <span className="text-[10px] text-slate-400 font-normal uppercase tracking-wider">{record.staffId}</span>
+                                </td>
+                                <td className="px-4 py-3 font-semibold text-slate-500">
+                                  {record.workingDaysInMonth} Days
+                                </td>
+                                <td className="px-4 py-2">
+                                  {isDraft && canCompute ? (
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={record.workingDaysInMonth}
+                                      value={daysAbsentVal}
+                                      className="w-16 px-2 py-1 border border-slate-200 rounded focus:ring-1 focus:ring-forest-100 focus:outline-none"
+                                      onChange={(e) => handleAttendanceChange(record.employeeId, 'daysAbsent', e.target.value)}
+                                    />
+                                  ) : (
+                                    <span>{record.daysAbsent} Days</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-2">
+                                  {isDraft && canCompute ? (
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={record.workingDaysInMonth * 2}
+                                      value={halfDaysVal}
+                                      className="w-16 px-2 py-1 border border-slate-200 rounded focus:ring-1 focus:ring-forest-100 focus:outline-none"
+                                      onChange={(e) => handleAttendanceChange(record.employeeId, 'halfDays', e.target.value)}
+                                    />
+                                  ) : (
+                                    <span>{record.halfDays} Days</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 font-semibold text-slate-800">
+                                  {isDraft ? computedWorked : record.daysWorked} Days
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                                    computedRate < 100 
+                                      ? 'bg-amber-50 text-amber-700 border border-amber-200' 
+                                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  }`}>
+                                    {computedRate}% Rate
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

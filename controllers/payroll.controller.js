@@ -1,10 +1,11 @@
 const PayrollRun = require('../models/PayrollRun');
 const Employee = require('../models/Employee');
-const { calculateMonthlyPayroll } = require('../utils/payrollEngine');
+const { calculateMonthlyPayroll, getWorkingDays } = require('../utils/payrollEngine');
 const catchAsync = require('../utils/catchAsync');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { PAYROLL_STATUS } = require('../config/constants');
 const { generatePayslipPdf } = require('../utils/payslipGenerator');
+const Papa = require('papaparse');
 
 /**
  * Helper to round values to 2 decimal places.
@@ -16,7 +17,7 @@ const round = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
  * Executes PITA calculation algorithms on all active employees.
  */
 exports.computePayroll = catchAsync(async (req, res) => {
-  const { month, year } = req.body;
+  const { month, year, attendance = [] } = req.body;
 
   // 1. Check if a payroll run for this period already exists and is locked
   const existingRun = await PayrollRun.findOne({
@@ -33,41 +34,63 @@ exports.computePayroll = catchAsync(async (req, res) => {
   const activeEmployees = await Employee.find({
     companyId: req.companyId,
     status: 'active'
-  });
+  }).populate('gradeId');
 
   if (activeEmployees.length === 0) {
     return sendError(res, 'No active employees found to compute payroll for.', 400);
   }
 
-  // 3. Perform calculations for each employee
+  // 3. Auto-calculate working days in the month
+  const workingDaysInMonth = getWorkingDays(month, year);
+
+  // 4. Perform calculations for each employee
   const calculatedEmployees = [];
   const totals = { gross: 0, tax: 0, pension: 0, nhf: 0, net: 0 };
 
   for (const emp of activeEmployees) {
-    const payroll = calculateMonthlyPayroll({
-      basicSalary: emp.basicSalary,
-      housingAllowance: emp.housingAllowance,
-      transportAllowance: emp.transportAllowance,
-      otherAllowances: emp.otherAllowances
-    });
+    // Look up attendance for this employee in request body
+    const att = attendance.find(a => a.employeeId?.toString() === emp._id.toString()) || { daysAbsent: 0, halfDays: 0 };
+    
+    // Resolve salary components based on override logic
+    let basicSalary = emp.basicSalary;
+    let housingAllowance = emp.housingAllowance;
+    let transportAllowance = emp.transportAllowance;
+    let otherAllowances = emp.otherAllowances;
+
+    if (!emp.salaryOverridden && emp.gradeId && emp.gradeId.isActive) {
+      basicSalary = emp.gradeId.basicSalary;
+      housingAllowance = emp.gradeId.housingAllowance;
+      transportAllowance = emp.gradeId.transportAllowance;
+      otherAllowances = emp.gradeId.otherAllowances;
+    }
+
+    const payroll = calculateMonthlyPayroll(
+      { basicSalary, housingAllowance, transportAllowance, otherAllowances },
+      { workingDaysInMonth, daysAbsent: att.daysAbsent || 0, halfDays: att.halfDays || 0 }
+    );
 
     calculatedEmployees.push({
       employeeId: emp._id,
       staffId: emp.staffId,
       name: emp.fullName,
-      basicSalary: emp.basicSalary,
-      housingAllowance: emp.housingAllowance,
-      transportAllowance: emp.transportAllowance,
-      otherAllowances: emp.otherAllowances,
-      grossSalary: payroll.monthlyGross,
+      basicSalary,
+      housingAllowance,
+      transportAllowance,
+      otherAllowances,
+      grossSalary: basicSalary + housingAllowance + transportAllowance + otherAllowances,
+      workingDaysInMonth,
+      daysAbsent: att.daysAbsent || 0,
+      halfDays: att.halfDays || 0,
+      daysWorked: payroll.daysWorked,
+      proratedGross: payroll.proratedGross,
       taxDeduction: payroll.monthlyTax,
       pensionDeduction: payroll.monthlyPension,
       nhfDeduction: payroll.monthlyNhf,
       netSalary: payroll.monthlyNet
     });
 
-    // Accumulate totals
-    totals.gross += payroll.monthlyGross;
+    // Accumulate totals based on prorated gross
+    totals.gross += payroll.proratedGross;
     totals.tax += payroll.monthlyTax;
     totals.pension += payroll.monthlyPension;
     totals.nhf += payroll.monthlyNhf;
@@ -83,7 +106,7 @@ exports.computePayroll = catchAsync(async (req, res) => {
 
   let run;
 
-  // 4. Update existing draft run or create a new one
+  // 5. Update existing draft run or create a new one
   if (existingRun) {
     existingRun.processedBy = req.user._id;
     existingRun.totals = totals;
@@ -102,6 +125,300 @@ exports.computePayroll = catchAsync(async (req, res) => {
   }
 
   return sendSuccess(res, `Payroll run calculated successfully as draft for ${month}/${year}`, { run }, 201);
+});
+
+/**
+ * Updates attendance figures for a DRAFT payroll run and recomputes calculations.
+ */
+exports.updateAttendance = catchAsync(async (req, res) => {
+  const { attendance = [] } = req.body;
+
+  const run = await PayrollRun.findOne({
+    _id: req.params.id,
+    companyId: req.companyId
+  });
+
+  if (!run) {
+    return sendError(res, 'Payroll run not found', 404);
+  }
+
+  if (run.status !== PAYROLL_STATUS.DRAFT) {
+    return sendError(res, 'Attendance can only be updated for draft payroll runs', 400);
+  }
+
+  const workingDaysInMonth = getWorkingDays(run.month, run.year);
+  const employeeIds = run.employees.map(e => e.employeeId);
+
+  // Fetch company employees to pull up-to-date salary/grade details
+  const companyEmployees = await Employee.find({
+    _id: { $in: employeeIds },
+    companyId: req.companyId
+  }).populate('gradeId');
+
+  const totals = { gross: 0, tax: 0, pension: 0, nhf: 0, net: 0 };
+
+  for (const empRecord of run.employees) {
+    // Find matching employee details
+    const emp = companyEmployees.find(e => e._id.toString() === empRecord.employeeId.toString());
+    
+    // Look up attendance update in payload, default to current values in the run if not provided
+    const att = attendance.find(a => a.employeeId?.toString() === empRecord.employeeId.toString());
+    const daysAbsent = att !== undefined ? (att.daysAbsent || 0) : empRecord.daysAbsent;
+    const halfDays = att !== undefined ? (att.halfDays || 0) : empRecord.halfDays;
+
+    let basicSalary = empRecord.basicSalary;
+    let housingAllowance = empRecord.housingAllowance;
+    let transportAllowance = empRecord.transportAllowance;
+    let otherAllowances = empRecord.otherAllowances;
+
+    if (emp) {
+      basicSalary = emp.basicSalary;
+      housingAllowance = emp.housingAllowance;
+      transportAllowance = emp.transportAllowance;
+      otherAllowances = emp.otherAllowances;
+
+      if (!emp.salaryOverridden && emp.gradeId && emp.gradeId.isActive) {
+        basicSalary = emp.gradeId.basicSalary;
+        housingAllowance = emp.gradeId.housingAllowance;
+        transportAllowance = emp.gradeId.transportAllowance;
+        otherAllowances = emp.gradeId.otherAllowances;
+      }
+    }
+
+    const payroll = calculateMonthlyPayroll(
+      { basicSalary, housingAllowance, transportAllowance, otherAllowances },
+      { workingDaysInMonth, daysAbsent, halfDays }
+    );
+
+    // Update employee record
+    empRecord.basicSalary = basicSalary;
+    empRecord.housingAllowance = housingAllowance;
+    empRecord.transportAllowance = transportAllowance;
+    empRecord.otherAllowances = otherAllowances;
+    empRecord.grossSalary = basicSalary + housingAllowance + transportAllowance + otherAllowances;
+    empRecord.workingDaysInMonth = workingDaysInMonth;
+    empRecord.daysAbsent = daysAbsent;
+    empRecord.halfDays = halfDays;
+    empRecord.daysWorked = payroll.daysWorked;
+    empRecord.proratedGross = payroll.proratedGross;
+    empRecord.taxDeduction = payroll.monthlyTax;
+    empRecord.pensionDeduction = payroll.monthlyPension;
+    empRecord.nhfDeduction = payroll.monthlyNhf;
+    empRecord.netSalary = payroll.monthlyNet;
+
+    // Accumulate run totals
+    totals.gross += payroll.proratedGross;
+    totals.tax += payroll.monthlyTax;
+    totals.pension += payroll.monthlyPension;
+    totals.nhf += payroll.monthlyNhf;
+    totals.net += payroll.monthlyNet;
+  }
+
+  // Update and round totals
+  run.totals = {
+    gross: round(totals.gross),
+    tax: round(totals.tax),
+    pension: round(totals.pension),
+    nhf: round(totals.nhf),
+    net: round(totals.net)
+  };
+
+  const updatedRun = await run.save();
+
+  return sendSuccess(res, 'Payroll run attendance updated and recalculated successfully', { run: updatedRun });
+});
+
+/**
+ * Returns a clean attendance summary for the run showing proration figures.
+ */
+exports.getAttendanceSheet = catchAsync(async (req, res) => {
+  const run = await PayrollRun.findOne({
+    _id: req.params.id,
+    companyId: req.companyId
+  });
+
+  if (!run) {
+    return sendError(res, 'Payroll run not found', 404);
+  }
+
+  const attendance = run.employees.map((emp) => {
+    const prorationPercentage = emp.workingDaysInMonth > 0 
+      ? round((emp.daysWorked / emp.workingDaysInMonth) * 100) 
+      : 100;
+
+    return {
+      employeeId: emp.employeeId,
+      name: emp.name,
+      staffId: emp.staffId,
+      workingDaysInMonth: emp.workingDaysInMonth,
+      daysAbsent: emp.daysAbsent,
+      halfDays: emp.halfDays,
+      daysWorked: emp.daysWorked,
+      prorationPercentage
+    };
+  });
+
+  return sendSuccess(res, 'Attendance sheet retrieved successfully', {
+    runId: run._id,
+    month: run.month,
+    year: run.year,
+    attendance
+  });
+});
+
+/**
+ * Bulk updates attendance figures via CSV file upload for DRAFT runs.
+ */
+exports.uploadAttendanceCsv = catchAsync(async (req, res) => {
+  if (!req.file) {
+    return sendError(res, 'No CSV file uploaded', 400);
+  }
+
+  const run = await PayrollRun.findOne({
+    _id: req.params.id,
+    companyId: req.companyId
+  });
+
+  if (!run) {
+    return sendError(res, 'Payroll run not found', 404);
+  }
+
+  if (run.status !== PAYROLL_STATUS.DRAFT) {
+    return sendError(res, 'Attendance can only be uploaded for draft payroll runs', 400);
+  }
+
+  const csvString = req.file.buffer.toString('utf8');
+  const parseResult = Papa.parse(csvString, {
+    header: true,
+    skipEmptyLines: true
+  });
+
+  if (parseResult.errors.length > 0) {
+    return sendError(res, 'Failed to parse CSV file', 400);
+  }
+
+  const csvRows = parseResult.data;
+  const updated = [];
+  const notFound = [];
+  const errors = [];
+
+  const companyEmployees = await Employee.find({ companyId: req.companyId }).populate('gradeId');
+
+  // Parse CSV records into a lookup map by staffId
+  const attendanceMap = new Map();
+  for (const row of csvRows) {
+    const staffId = row.staffId?.trim();
+    const daysAbsent = parseFloat(row.daysAbsent);
+    const halfDays = parseFloat(row.halfDays);
+
+    if (!staffId) {
+      errors.push({ row, error: 'Missing staffId field' });
+      continue;
+    }
+
+    if (isNaN(daysAbsent) || daysAbsent < 0) {
+      errors.push({ staffId, error: 'daysAbsent must be a positive number' });
+      continue;
+    }
+
+    if (isNaN(halfDays) || halfDays < 0) {
+      errors.push({ staffId, error: 'halfDays must be a positive number' });
+      continue;
+    }
+
+    attendanceMap.set(staffId, { daysAbsent, halfDays });
+  }
+
+  const workingDaysInMonth = getWorkingDays(run.month, run.year);
+  const totals = { gross: 0, tax: 0, pension: 0, nhf: 0, net: 0 };
+
+  for (const empRecord of run.employees) {
+    const emp = companyEmployees.find(e => e._id.toString() === empRecord.employeeId.toString());
+    
+    let daysAbsent = empRecord.daysAbsent;
+    let halfDays = empRecord.halfDays;
+
+    if (emp && attendanceMap.has(emp.staffId)) {
+      const att = attendanceMap.get(emp.staffId);
+      daysAbsent = att.daysAbsent;
+      halfDays = att.halfDays;
+      updated.push(emp.staffId);
+    }
+
+    // Resolve salary details
+    let basicSalary = empRecord.basicSalary;
+    let housingAllowance = empRecord.housingAllowance;
+    let transportAllowance = empRecord.transportAllowance;
+    let otherAllowances = empRecord.otherAllowances;
+
+    if (emp) {
+      basicSalary = emp.basicSalary;
+      housingAllowance = emp.housingAllowance;
+      transportAllowance = emp.transportAllowance;
+      otherAllowances = emp.otherAllowances;
+
+      if (!emp.salaryOverridden && emp.gradeId && emp.gradeId.isActive) {
+        basicSalary = emp.gradeId.basicSalary;
+        housingAllowance = emp.gradeId.housingAllowance;
+        transportAllowance = emp.gradeId.transportAllowance;
+        otherAllowances = emp.gradeId.otherAllowances;
+      }
+    }
+
+    const payroll = calculateMonthlyPayroll(
+      { basicSalary, housingAllowance, transportAllowance, otherAllowances },
+      { workingDaysInMonth, daysAbsent, halfDays }
+    );
+
+    // Update record in run
+    empRecord.basicSalary = basicSalary;
+    empRecord.housingAllowance = housingAllowance;
+    empRecord.transportAllowance = transportAllowance;
+    empRecord.otherAllowances = otherAllowances;
+    empRecord.grossSalary = basicSalary + housingAllowance + transportAllowance + otherAllowances;
+    empRecord.workingDaysInMonth = workingDaysInMonth;
+    empRecord.daysAbsent = daysAbsent;
+    empRecord.halfDays = halfDays;
+    empRecord.daysWorked = payroll.daysWorked;
+    empRecord.proratedGross = payroll.proratedGross;
+    empRecord.taxDeduction = payroll.monthlyTax;
+    empRecord.pensionDeduction = payroll.monthlyPension;
+    empRecord.nhfDeduction = payroll.monthlyNhf;
+    empRecord.netSalary = payroll.monthlyNet;
+
+    // Accumulate run totals
+    totals.gross += payroll.proratedGross;
+    totals.tax += payroll.monthlyTax;
+    totals.pension += payroll.monthlyPension;
+    totals.nhf += payroll.monthlyNhf;
+    totals.net += payroll.monthlyNet;
+  }
+
+  // Find staffIds in CSV that do not match any employee in the run
+  for (const staffId of attendanceMap.keys()) {
+    if (!updated.includes(staffId)) {
+      notFound.push(staffId);
+    }
+  }
+
+  run.totals = {
+    gross: round(totals.gross),
+    tax: round(totals.tax),
+    pension: round(totals.pension),
+    nhf: round(totals.nhf),
+    net: round(totals.net)
+  };
+
+  await run.save();
+
+  return sendSuccess(res, 'Attendance CSV uploaded and processed successfully', {
+    run,
+    summary: {
+      updated,
+      notFound: [...new Set(notFound)],
+      errors
+    }
+  });
 });
 
 /**
@@ -227,4 +544,3 @@ exports.getPayslip = catchAsync(async (req, res) => {
 
   return res.end(pdfBuffer);
 });
-

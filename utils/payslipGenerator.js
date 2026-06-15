@@ -29,11 +29,60 @@ const generatePayslipPdf = async (companyName, employeeRecord, periodName) => {
     transportAllowance,
     otherAllowances,
     grossSalary,
+    workingDaysInMonth = 0,
+    daysAbsent = 0,
+    halfDays = 0,
+    daysWorked = 0,
+    proratedGross,
     taxDeduction,
     pensionDeduction,
     nhfDeduction,
     netSalary
   } = employeeRecord;
+
+  const finalProratedGross = proratedGross !== undefined ? proratedGross : grossSalary;
+  const isProratedApplied = workingDaysInMonth > 0 && daysWorked < workingDaysInMonth;
+  const grossLabel = isProratedApplied ? 'Standard Gross' : 'Gross Earnings';
+
+  let attendanceHtml = '';
+  if (workingDaysInMonth > 0) {
+    attendanceHtml = `
+      <div class="meta-item">
+        <span class="meta-label">Working Days in Month:</span>
+        <span class="meta-value">${workingDaysInMonth}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Days Worked:</span>
+        <span class="meta-value">${daysWorked}</span>
+      </div>
+    `;
+    if (daysAbsent > 0) {
+      attendanceHtml += `
+        <div class="meta-item">
+          <span class="meta-label">Days Absent:</span>
+          <span class="meta-value" style="color: #dc2626; font-weight: bold;">${daysAbsent}</span>
+        </div>
+      `;
+    }
+    if (halfDays > 0) {
+      attendanceHtml += `
+        <div class="meta-item">
+          <span class="meta-label">Half Days:</span>
+          <span class="meta-value" style="color: #ea580c; font-weight: bold;">${halfDays}</span>
+        </div>
+      `;
+    }
+  }
+
+  let earnedGrossRow = '';
+  if (isProratedApplied) {
+    earnedGrossRow = `
+      <div class="total-row" style="border-top: 1px dashed #cbd5e1; margin-top: 6px; color: #0f766e; font-weight: 700;">
+        <span>Earned Gross</span>
+        <span>${formatNaira(finalProratedGross)}</span>
+      </div>
+    `;
+  }
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -220,6 +269,7 @@ const generatePayslipPdf = async (companyName, employeeRecord, periodName) => {
             <span class="meta-label">Payment Mode:</span>
             <span class="meta-value">Bank Transfer</span>
           </div>
+          ${attendanceHtml}
         </div>
 
         <div class="table-container">
@@ -242,9 +292,10 @@ const generatePayslipPdf = async (companyName, employeeRecord, periodName) => {
               <span class="data-value">${formatNaira(otherAllowances)}</span>
             </div>
             <div class="total-row">
-              <span>Gross Earnings</span>
+              <span>${grossLabel}</span>
               <span>${formatNaira(grossSalary)}</span>
             </div>
+            ${earnedGrossRow}
           </div>
 
           <div class="table-block">
@@ -284,18 +335,14 @@ const generatePayslipPdf = async (companyName, employeeRecord, periodName) => {
 
   let browser;
   try {
-    // Launch headless chromium browser
     browser = await puppeteer.launch({
       headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 
     const page = await browser.newPage();
-    
-    // Set content and wait for it to load
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
-    // Generate PDF
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,

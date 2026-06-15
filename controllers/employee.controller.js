@@ -1,4 +1,5 @@
 const Employee = require('../models/Employee');
+const SalaryGrade = require('../models/SalaryGrade');
 const catchAsync = require('../utils/catchAsync');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { EMPLOYEE_STATUS } = require('../config/constants');
@@ -19,7 +20,8 @@ exports.createEmployee = catchAsync(async (req, res) => {
     otherAllowances,
     bankName,
     accountNumber,
-    accountName
+    accountName,
+    gradeId
   } = req.body;
 
   // 1. If email is provided, prevent duplicates within the same company tenant
@@ -33,20 +35,52 @@ exports.createEmployee = catchAsync(async (req, res) => {
     }
   }
 
-  // 2. Create employee
+  // 2. Handle Salary Grade assignment
+  let finalBasic = basicSalary || 0;
+  let finalHousing = housingAllowance || 0;
+  let finalTransport = transportAllowance || 0;
+  let finalOther = otherAllowances || 0;
+  let salaryOverridden = false;
+
+  if (gradeId) {
+    const grade = await SalaryGrade.findOne({ _id: gradeId, companyId: req.companyId, isActive: true });
+    if (!grade) {
+      return sendError(res, 'Salary grade not found', 404);
+    }
+
+    const hasSalaryInputs =
+      basicSalary !== undefined ||
+      housingAllowance !== undefined ||
+      transportAllowance !== undefined ||
+      otherAllowances !== undefined;
+
+    if (hasSalaryInputs) {
+      salaryOverridden = true;
+    } else {
+      finalBasic = grade.basicSalary;
+      finalHousing = grade.housingAllowance;
+      finalTransport = grade.transportAllowance;
+      finalOther = grade.otherAllowances;
+      salaryOverridden = false;
+    }
+  }
+
+  // 3. Create employee
   const employee = await Employee.create({
     companyId: req.companyId,
     firstName,
     lastName,
     email: email ? email.toLowerCase() : undefined,
     phone,
-    basicSalary,
-    housingAllowance,
-    transportAllowance,
-    otherAllowances,
+    basicSalary: finalBasic,
+    housingAllowance: finalHousing,
+    transportAllowance: finalTransport,
+    otherAllowances: finalOther,
     bankName,
     accountNumber,
-    accountName
+    accountName,
+    gradeId: gradeId || undefined,
+    salaryOverridden
   });
 
   return sendSuccess(res, 'Employee created successfully', { employee }, 201);
@@ -69,7 +103,7 @@ exports.getEmployees = catchAsync(async (req, res) => {
     query.status = EMPLOYEE_STATUS.ACTIVE;
   }
 
-  const employees = await Employee.find(query);
+  const employees = await Employee.find(query).populate('gradeId');
 
   return sendSuccess(res, 'Employees retrieved successfully', { employees });
 });
@@ -82,13 +116,46 @@ exports.getEmployeeById = catchAsync(async (req, res) => {
   const employee = await Employee.findOne({
     _id: req.params.id,
     companyId: req.companyId
-  });
+  }).populate('gradeId');
 
   if (!employee) {
     return sendError(res, 'Employee not found', 404);
   }
 
-  return sendSuccess(res, 'Employee retrieved successfully', { employee });
+  let gradeData = null;
+  let salaryDiffersFromGrade = false;
+
+  if (employee.gradeId) {
+    const grade = employee.gradeId;
+    gradeData = {
+      _id: grade._id,
+      name: grade.name,
+      basicSalary: grade.basicSalary,
+      housingAllowance: grade.housingAllowance,
+      transportAllowance: grade.transportAllowance,
+      otherAllowances: grade.otherAllowances,
+      grossSalary: grade.basicSalary + grade.housingAllowance + grade.transportAllowance + grade.otherAllowances
+    };
+
+    salaryDiffersFromGrade =
+      employee.basicSalary !== grade.basicSalary ||
+      employee.housingAllowance !== grade.housingAllowance ||
+      employee.transportAllowance !== grade.transportAllowance ||
+      employee.otherAllowances !== grade.otherAllowances;
+  }
+
+  const employeeJson = employee.toJSON();
+  if (employee.gradeId) {
+    employeeJson.gradeId = employee.gradeId._id;
+  }
+
+  return sendSuccess(res, 'Employee retrieved successfully', {
+    employee: {
+      ...employeeJson,
+      gradeData,
+      salaryDiffersFromGrade
+    }
+  });
 });
 
 /**
@@ -117,7 +184,8 @@ exports.updateEmployee = catchAsync(async (req, res) => {
     otherAllowances,
     bankName,
     accountNumber,
-    accountName
+    accountName,
+    gradeId
   } = req.body;
 
   // Verify unique email check if updated
@@ -130,6 +198,45 @@ exports.updateEmployee = catchAsync(async (req, res) => {
       return sendError(res, 'An employee with this email already exists in your company', 400);
     }
     employee.email = email.toLowerCase();
+  }
+
+  // Handle grade update
+  if (gradeId !== undefined) {
+    if (gradeId === null || gradeId === '') {
+      employee.gradeId = undefined;
+      employee.salaryOverridden = false;
+    } else {
+      const grade = await SalaryGrade.findOne({ _id: gradeId, companyId: req.companyId, isActive: true });
+      if (!grade) {
+        return sendError(res, 'Salary grade not found', 404);
+      }
+
+      if (employee.gradeId?.toString() !== gradeId.toString()) {
+        employee.gradeId = gradeId;
+        
+        // If they did not pass manual overrides in this request, inherit grade salary components
+        const hasSalaryInputs =
+          basicSalary !== undefined ||
+          housingAllowance !== undefined ||
+          transportAllowance !== undefined ||
+          otherAllowances !== undefined;
+
+        if (!hasSalaryInputs) {
+          employee.basicSalary = grade.basicSalary;
+          employee.housingAllowance = grade.housingAllowance;
+          employee.transportAllowance = grade.transportAllowance;
+          employee.otherAllowances = grade.otherAllowances;
+          employee.salaryOverridden = false;
+        }
+      }
+    }
+  }
+
+  // Check if any salary updates are provided to mark as overridden
+  const salaryKeys = ['basicSalary', 'housingAllowance', 'transportAllowance', 'otherAllowances'];
+  const hasSalaryUpdates = salaryKeys.some(key => req.body[key] !== undefined);
+  if (hasSalaryUpdates) {
+    employee.salaryOverridden = true;
   }
 
   // Update provided fields
@@ -175,4 +282,42 @@ exports.deleteEmployee = catchAsync(async (req, res) => {
     employeeId: employee._id,
     status: employee.status
   });
+});
+
+/**
+ * Resets employee salary components back to the assigned SalaryGrade figures.
+ */
+exports.resetEmployeeSalary = catchAsync(async (req, res) => {
+  const employee = await Employee.findOne({
+    _id: req.params.id,
+    companyId: req.companyId
+  });
+
+  if (!employee) {
+    return sendError(res, 'Employee not found', 404);
+  }
+
+  if (!employee.gradeId) {
+    return sendError(res, 'Employee does not have a salary grade assigned', 400);
+  }
+
+  const grade = await SalaryGrade.findOne({
+    _id: employee.gradeId,
+    companyId: req.companyId,
+    isActive: true
+  });
+
+  if (!grade) {
+    return sendError(res, 'Associated salary grade not found or inactive', 404);
+  }
+
+  employee.basicSalary = grade.basicSalary;
+  employee.housingAllowance = grade.housingAllowance;
+  employee.transportAllowance = grade.transportAllowance;
+  employee.otherAllowances = grade.otherAllowances;
+  employee.salaryOverridden = false;
+
+  const updatedEmployee = await employee.save();
+
+  return sendSuccess(res, 'Employee salary reset to grade figures successfully', { employee: updatedEmployee });
 });
