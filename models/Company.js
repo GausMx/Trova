@@ -16,7 +16,15 @@ const CompanySchema = new mongoose.Schema(
     subscriptionTier: {
       type: String,
       enum: Object.values(SUBSCRIPTION_TIERS),
-      default: SUBSCRIPTION_TIERS.FREE
+      default: SUBSCRIPTION_TIERS.GROWTH
+    },
+    isTrial: {
+      type: Boolean,
+      default: true
+    },
+    trialEndsAt: {
+      type: Date,
+      default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     },
     status: {
       type: String,

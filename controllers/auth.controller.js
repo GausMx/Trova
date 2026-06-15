@@ -3,7 +3,7 @@ const Company = require('../models/Company');
 const User = require('../models/User');
 const catchAsync = require('../utils/catchAsync');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
-const { USER_ROLES } = require('../config/constants');
+const { USER_ROLES, SUBSCRIPTION_TIERS } = require('../config/constants');
 
 /**
  * Generates a JWT token for the user.
@@ -52,7 +52,10 @@ exports.register = catchAsync(async (req, res, next) => {
 
     company = await Company.create({
       name: companyName,
-      industry
+      industry,
+      subscriptionTier: SUBSCRIPTION_TIERS.GROWTH,
+      isTrial: true,
+      trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     });
   } else {
     // Non-owner registration: Find existing company by name

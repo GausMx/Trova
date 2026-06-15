@@ -45,11 +45,12 @@ describe('Billing & Subscription API Integration Tests', () => {
     await User.deleteMany({});
     await Company.deleteMany({});
 
-    // 1. Create a Company (starts at default FREE tier)
+    // 1. Create a Company (starts at default STARTER tier)
     const company = await Company.create({
       name: 'Trova Billing Corp',
       industry: 'FinTech',
-      subscriptionTier: SUBSCRIPTION_TIERS.FREE,
+      subscriptionTier: SUBSCRIPTION_TIERS.STARTER,
+      isTrial: false,
       status: COMPANY_STATUS.ACTIVE
     });
     companyId = company._id;
@@ -102,6 +103,34 @@ describe('Billing & Subscription API Integration Tests', () => {
   });
 
   describe('POST /api/billing/initialize', () => {
+    test('should allow company owner to initialize subscription checkout for starter tier', async () => {
+      const mockCheckoutResponse = {
+        authorization_url: 'https://checkout.paystack.com/mock_auth_url_starter',
+        reference: 'mock_ref_starter_123'
+      };
+      paystackService.initializeTransaction.mockResolvedValue(mockCheckoutResponse);
+
+      const res = await request(app)
+        .post('/api/billing/initialize')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ tier: SUBSCRIPTION_TIERS.STARTER })
+        .expect(200);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toHaveProperty('authorization_url', mockCheckoutResponse.authorization_url);
+      expect(res.body.data).toHaveProperty('reference', mockCheckoutResponse.reference);
+
+      expect(paystackService.initializeTransaction).toHaveBeenCalledWith(
+        ownerEmail,
+        25000,
+        process.env.PAYSTACK_PLAN_STARTER || 'PLN_mock_starter',
+        {
+          companyId: companyId.toString(),
+          tier: SUBSCRIPTION_TIERS.STARTER
+        }
+      );
+    });
+
     test('should allow company owner to initialize subscription checkout for growth tier', async () => {
       const mockCheckoutResponse = {
         authorization_url: 'https://checkout.paystack.com/mock_auth_url',
@@ -121,7 +150,7 @@ describe('Billing & Subscription API Integration Tests', () => {
 
       expect(paystackService.initializeTransaction).toHaveBeenCalledWith(
         ownerEmail,
-        15000,
+        55000,
         process.env.PAYSTACK_PLAN_GROWTH || 'PLN_mock_growth',
         {
           companyId: companyId.toString(),
@@ -149,7 +178,7 @@ describe('Billing & Subscription API Integration Tests', () => {
 
       expect(paystackService.initializeTransaction).toHaveBeenCalledWith(
         ownerEmail,
-        50000,
+        100000,
         process.env.PAYSTACK_PLAN_ENTERPRISE || 'PLN_mock_enterprise',
         {
           companyId: companyId.toString(),
@@ -204,7 +233,7 @@ describe('Billing & Subscription API Integration Tests', () => {
         .expect(200);
 
       expect(res.body.success).toBe(true);
-      expect(res.body.data).toHaveProperty('subscriptionTier', SUBSCRIPTION_TIERS.FREE);
+      expect(res.body.data).toHaveProperty('subscriptionTier', SUBSCRIPTION_TIERS.STARTER);
       expect(res.body.data).toHaveProperty('status', COMPANY_STATUS.ACTIVE);
     });
 
@@ -215,7 +244,7 @@ describe('Billing & Subscription API Integration Tests', () => {
         .expect(200);
 
       expect(res.body.success).toBe(true);
-      expect(res.body.data.subscriptionTier).toBe(SUBSCRIPTION_TIERS.FREE);
+      expect(res.body.data.subscriptionTier).toBe(SUBSCRIPTION_TIERS.STARTER);
     });
 
     test('should deny HR user from checking subscription status', async () => {
@@ -238,7 +267,7 @@ describe('Billing & Subscription API Integration Tests', () => {
         event: 'charge.success',
         data: {
           reference: 'paystack_ref_123',
-          amount: 1500000,
+          amount: 5500000,
           metadata: {
             companyId: companyId.toString(),
             tier: SUBSCRIPTION_TIERS.GROWTH
@@ -299,7 +328,8 @@ describe('Billing & Subscription API Integration Tests', () => {
       expect(res.body.success).toBe(true);
 
       const updatedCompany = await Company.findById(companyId);
-      expect(updatedCompany.subscriptionTier).toBe(SUBSCRIPTION_TIERS.FREE);
+      expect(updatedCompany.isTrial).toBe(true);
+      expect(new Date(updatedCompany.trialEndsAt).getTime()).toBe(0);
     });
 
     test('should process subscription.disable and downgrade using email fallback if metadata is missing', async () => {
@@ -334,7 +364,8 @@ describe('Billing & Subscription API Integration Tests', () => {
       expect(res.body.success).toBe(true);
 
       const updatedCompany = await Company.findById(companyId);
-      expect(updatedCompany.subscriptionTier).toBe(SUBSCRIPTION_TIERS.FREE);
+      expect(updatedCompany.isTrial).toBe(true);
+      expect(new Date(updatedCompany.trialEndsAt).getTime()).toBe(0);
     });
 
     test('should reject webhook payload with invalid signature', async () => {
@@ -358,7 +389,7 @@ describe('Billing & Subscription API Integration Tests', () => {
       expect(res.body.message).toContain('Invalid signature headers');
 
       const updatedCompany = await Company.findById(companyId);
-      expect(updatedCompany.subscriptionTier).toBe(SUBSCRIPTION_TIERS.FREE);
+      expect(updatedCompany.subscriptionTier).toBe(SUBSCRIPTION_TIERS.STARTER);
     });
 
     test('should reject webhook payload with missing signature header', async () => {

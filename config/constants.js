@@ -36,10 +36,13 @@ module.exports = {
 
   // Subscription tiers
   SUBSCRIPTION_TIERS: {
-    FREE: 'free',
+    STARTER: 'starter',
     GROWTH: 'growth',
     ENTERPRISE: 'enterprise'
   },
+
+  // Trial length in days
+  TRIAL_DAYS: 30,
 
   // Company status
   COMPANY_STATUS: {

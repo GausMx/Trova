@@ -21,7 +21,7 @@ router.post(
   restrictTo('owner'),
   [
     body('tier')
-      .isIn([SUBSCRIPTION_TIERS.GROWTH, SUBSCRIPTION_TIERS.ENTERPRISE])
+      .isIn([SUBSCRIPTION_TIERS.STARTER, SUBSCRIPTION_TIERS.GROWTH, SUBSCRIPTION_TIERS.ENTERPRISE])
       .withMessage('Please select a valid paid subscription tier')
   ],
   validate,

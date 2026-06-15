@@ -12,16 +12,19 @@ const { SUBSCRIPTION_TIERS, COMPANY_STATUS } = require('../config/constants');
 exports.initializeSubscription = catchAsync(async (req, res) => {
   const { tier } = req.body;
 
-  if (![SUBSCRIPTION_TIERS.GROWTH, SUBSCRIPTION_TIERS.ENTERPRISE].includes(tier)) {
+  if (![SUBSCRIPTION_TIERS.STARTER, SUBSCRIPTION_TIERS.GROWTH, SUBSCRIPTION_TIERS.ENTERPRISE].includes(tier)) {
     return sendError(res, 'Invalid subscription tier selected', 400);
   }
 
   // 1. Determine price amount and plan code
-  let amount = 15000; // N15,000/month default for growth
-  let planCode = process.env.PAYSTACK_PLAN_GROWTH || 'PLN_mock_growth';
+  let amount = 25000; // N25,000/month for starter
+  let planCode = process.env.PAYSTACK_PLAN_STARTER || 'PLN_mock_starter';
 
-  if (tier === SUBSCRIPTION_TIERS.ENTERPRISE) {
-    amount = 50000; // N50,000/month for enterprise
+  if (tier === SUBSCRIPTION_TIERS.GROWTH) {
+    amount = 55000; // N55,000/month for growth
+    planCode = process.env.PAYSTACK_PLAN_GROWTH || 'PLN_mock_growth';
+  } else if (tier === SUBSCRIPTION_TIERS.ENTERPRISE) {
+    amount = 100000; // N100,000/month for enterprise
     planCode = process.env.PAYSTACK_PLAN_ENTERPRISE || 'PLN_mock_enterprise';
   }
 
@@ -71,12 +74,13 @@ exports.handleWebhook = catchAsync(async (req, res) => {
       if (company) {
         company.subscriptionTier = tier;
         company.status = COMPANY_STATUS.ACTIVE;
+        company.isTrial = false; // Mark trial as completed
         await company.save();
         console.log(`[Billing Webhook] Upgraded Company ${company.name} (${companyId}) to tier: ${tier}`);
       }
     }
   } else if (event === 'subscription.disable') {
-    // Downgrade company subscription to free
+    // Downgrade company subscription and expire trial
     let companyId = data.metadata ? data.metadata.companyId : null;
 
     // Fallback: If metadata is missing in the disable event, look up company by user email
@@ -90,9 +94,11 @@ exports.handleWebhook = catchAsync(async (req, res) => {
     if (companyId) {
       const company = await Company.findById(companyId);
       if (company) {
-        company.subscriptionTier = SUBSCRIPTION_TIERS.FREE;
+        company.subscriptionTier = SUBSCRIPTION_TIERS.STARTER;
+        company.isTrial = true;
+        company.trialEndsAt = new Date(0); // Set trial as expired to block access
         await company.save();
-        console.log(`[Billing Webhook] Downgraded Company ${company.name} (${companyId}) to tier: free due to cancellation/failure`);
+        console.log(`[Billing Webhook] Cancelled subscription for Company ${company.name} (${companyId}). Switched to expired trial.`);
       }
     }
   }
@@ -112,6 +118,8 @@ exports.getBillingStatus = catchAsync(async (req, res) => {
 
   return sendSuccess(res, 'Billing status retrieved successfully', {
     subscriptionTier: company.subscriptionTier,
-    status: company.status
+    status: company.status,
+    isTrial: company.isTrial,
+    trialEndsAt: company.trialEndsAt
   });
 });

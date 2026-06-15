@@ -2,7 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const payrollController = require('../controllers/payroll.controller');
 const { protect } = require('../middleware/auth.middleware');
-const { restrictTo, checkCompanyStatus } = require('../middleware/roles.middleware');
+const { restrictTo, checkCompanyStatus, checkSubscriptionLimits } = require('../middleware/roles.middleware');
 const validate = require('../middleware/validate.middleware');
 
 const router = express.Router();
@@ -25,16 +25,16 @@ const computeValidationRules = [
 router.get('/', restrictTo('owner', 'admin', 'hr', 'finance'), payrollController.getPayrollRuns);
 
 // POST /compute -> Calculate draft run (Owner, Admin, and Finance only)
-router.post('/compute', restrictTo('owner', 'admin', 'finance'), computeValidationRules, validate, payrollController.computePayroll);
+router.post('/compute', restrictTo('owner', 'admin', 'finance'), checkSubscriptionLimits, computeValidationRules, validate, payrollController.computePayroll);
 
 // GET /:id -> Get payroll run details with full employee sub-records
 router.get('/:id', restrictTo('owner', 'admin', 'hr', 'finance'), payrollController.getPayrollRunById);
 
 // POST /:id/approve -> Approve draft payroll (Owner, Admin, and Finance only)
-router.post('/:id/approve', restrictTo('owner', 'admin', 'finance'), payrollController.approvePayroll);
+router.post('/:id/approve', restrictTo('owner', 'admin', 'finance'), checkSubscriptionLimits, payrollController.approvePayroll);
 
 // POST /:id/pay -> Process run payments (Owner and Finance only)
-router.post('/:id/pay', restrictTo('owner', 'finance'), payrollController.payPayroll);
+router.post('/:id/pay', restrictTo('owner', 'finance'), checkSubscriptionLimits, payrollController.payPayroll);
 
 // GET /:id/payslip/:employeeId -> Stream/download PDF payslip (Owner, Admin, HR, and Finance allowed)
 router.get('/:id/payslip/:employeeId', restrictTo('owner', 'admin', 'hr', 'finance'), payrollController.getPayslip);

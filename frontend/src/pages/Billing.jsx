@@ -29,8 +29,10 @@ export default function Billing() {
     },
   });
 
-  const subscriptionTier = statusRes?.data?.subscriptionTier || 'free';
+  const subscriptionTier = statusRes?.data?.subscriptionTier || 'growth';
   const accountStatus = statusRes?.data?.status || 'active';
+  const isTrial = statusRes?.data?.isTrial;
+  const trialEndsAt = statusRes?.data?.trialEndsAt;
   const isOwner = user?.role === 'owner';
 
   const handleUpgrade = (tier) => {
@@ -39,15 +41,23 @@ export default function Billing() {
     upgradeMutation.mutate(tier);
   };
 
+  // Compute remaining trial days
+  let daysRemaining = 0;
+  if (isTrial && trialEndsAt) {
+    const msDiff = new Date(trialEndsAt).getTime() - Date.now();
+    daysRemaining = Math.max(0, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
+  }
+
   const planTiers = [
     {
-      id: 'free',
-      name: 'Free Tier',
-      price: '₦0',
-      period: 'forever',
-      description: 'Standard HR and employee tracking for small startups.',
+      id: 'starter',
+      name: 'Starter Tier',
+      price: '₦25,000',
+      period: 'month',
+      employeeLimitLabel: 'Up to 20 active employees',
+      description: 'Standard HR and employee tracking for small teams.',
       features: [
-        'Up to 5 active employees',
+        'Up to 20 active employees',
         'Basic payroll calculations',
         'Standard employee records database',
         'Email support',
@@ -56,11 +66,12 @@ export default function Billing() {
     {
       id: 'growth',
       name: 'Growth Tier',
-      price: '₦15,000',
+      price: '₦55,000',
       period: 'month',
-      description: 'Calculations, automated tax remissions, and statutory seeders.',
+      employeeLimitLabel: 'Up to 100 active employees',
+      description: 'Full PAYE computation, pension and NHF automation, PDF payslip generation, and compliance calendar',
       features: [
-        'Up to 50 active employees',
+        'Up to 100 active employees',
         'Nigerian PITA tax reliefs & consolidated allowances',
         'Statutory Compliance Calendar Integration',
         'Automated monthly compliance obligation statuses',
@@ -72,9 +83,10 @@ export default function Billing() {
     {
       id: 'enterprise',
       name: 'Enterprise Tier',
-      price: '₦50,000',
+      price: '₦100,000',
       period: 'month',
-      description: 'Tailored payroll workflows, unlimited scale, and dedicated compliance support.',
+      employeeLimitLabel: 'Unlimited active employees',
+      description: 'Everything in Growth plus dedicated account manager, custom onboarding, priority support, and SLA guarantee',
       features: [
         'Unlimited active employees',
         'Custom PITA tax calculations & reliefs configuration',
@@ -92,6 +104,18 @@ export default function Billing() {
         <h2 className="text-xl font-bold text-slate-800">Subscription & Billing</h2>
         <p className="text-slate-500 text-sm mt-0.5">Manage your corporate billing, view active plan features, or upgrade your subscription.</p>
       </div>
+
+      {isTrial && (
+        <div className="bg-forest-900 text-white p-6 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm border border-forest-805">
+          <div>
+            <h3 className="font-bold text-lg">You are on a 30-day free trial — {daysRemaining} days remaining</h3>
+            <p className="text-forest-100 text-xs mt-1">Upgrade anytime to keep access and configure automated payroll runs.</p>
+          </div>
+          <span className="bg-white/20 text-white text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-lg self-start sm:self-auto">
+            Trial Mode
+          </span>
+        </div>
+      )}
 
       {errorMsg && (
         <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-center space-x-2">
@@ -115,13 +139,15 @@ export default function Billing() {
               <div>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Active Subscription Plan</p>
                 <div className="flex items-center space-x-2 mt-0.5">
-                  <h3 className="font-bold text-lg text-slate-850 capitalize">{subscriptionTier} Plan</h3>
+                  <h3 className="font-bold text-lg text-slate-855 capitalize">{subscriptionTier} Plan</h3>
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                    accountStatus === 'active' 
+                    isTrial
+                      ? 'bg-amber-50 text-amber-700 border-amber-205'
+                      : accountStatus === 'active' 
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                       : 'bg-rose-50 text-rose-700 border-rose-200'
                   }`}>
-                    {accountStatus}
+                    {isTrial ? 'Trial' : accountStatus}
                   </span>
                 </div>
               </div>
@@ -140,8 +166,8 @@ export default function Billing() {
       {/* Plans Comparison Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {planTiers.map((plan) => {
-          const isCurrentPlan = subscriptionTier === plan.id;
-          const isPlanPaid = plan.id !== 'free';
+          // If the user is on trial, they must be allowed to click Upgrade on any tier (including their trial tier) to pay.
+          const isCurrentPlan = !isTrial && subscriptionTier === plan.id;
 
           return (
             <div
@@ -171,9 +197,14 @@ export default function Billing() {
                   <p className="text-slate-400 text-xs mt-1 min-h-[32px]">{plan.description}</p>
                 </div>
 
-                <div className="flex items-baseline text-slate-800">
-                  <span className="text-4xl font-extrabold tracking-tight">{plan.price}</span>
-                  <span className="ml-1 text-sm font-semibold text-slate-400">/{plan.period}</span>
+                <div>
+                  <div className="flex items-baseline text-slate-800">
+                    <span className="text-4xl font-extrabold tracking-tight">{plan.price}</span>
+                    <span className="ml-1 text-sm font-semibold text-slate-400">/{plan.period}</span>
+                  </div>
+                  <div className="text-xs font-bold text-forest-800 bg-forest-50 border border-forest-100 px-2.5 py-1 rounded-md mt-1.5 inline-block">
+                    {plan.employeeLimitLabel}
+                  </div>
                 </div>
 
                 {/* Features Checklist */}
@@ -199,7 +230,7 @@ export default function Billing() {
                     <ShieldCheck className="w-4 h-4 text-slate-400" />
                     <span>Plan Active</span>
                   </button>
-                ) : isPlanPaid ? (
+                ) : (
                   <button
                     onClick={() => handleUpgrade(plan.id)}
                     disabled={!isOwner || upgradeMutation.isPending}
@@ -215,15 +246,8 @@ export default function Billing() {
                         <span>Initializing...</span>
                       </>
                     ) : (
-                      <span>{isOwner ? `Upgrade to ${plan.name.replace(' Plan', '')}` : 'Owner Account Only'}</span>
+                      <span>{isOwner ? `Subscribe to ${plan.name.replace(' Plan', '')}` : 'Owner Account Only'}</span>
                     )}
-                  </button>
-                ) : (
-                  <button
-                    disabled
-                    className="w-full py-2.5 bg-slate-50 text-slate-400 rounded-lg text-sm font-semibold border border-slate-150 cursor-not-allowed"
-                  >
-                    Unavailable
                   </button>
                 )}
               </div>
