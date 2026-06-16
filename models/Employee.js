@@ -71,6 +71,10 @@ const EmployeeSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    bankCode: {
+      type: String,
+      trim: true
+    },
     accountNumber: {
       type: String,
       trim: true

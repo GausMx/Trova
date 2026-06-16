@@ -48,6 +48,9 @@ const employeeValidationRules = [
   body('bankName')
     .optional()
     .trim(),
+  body('bankCode')
+    .optional()
+    .trim(),
   body('accountNumber')
     .optional({ checkFalsy: true })
     .isLength({ min: 10, max: 10 })
@@ -70,7 +73,10 @@ const employeeUpdateValidationRules = [
   body('housingAllowance').optional().isFloat({ min: 0 }).withMessage('Housing allowance must be a positive number'),
   body('transportAllowance').optional().isFloat({ min: 0 }).withMessage('Transport allowance must be a positive number'),
   body('otherAllowances').optional().isFloat({ min: 0 }).withMessage('Other allowances must be a positive number'),
+  body('bankName').optional().trim(),
+  body('bankCode').optional().trim(),
   body('accountNumber').optional({ checkFalsy: true }).isLength({ min: 10, max: 10 }).isNumeric().withMessage('Account number must be a 10-digit Nigerian NUBAN number'),
+  body('accountName').optional().trim(),
   body('gradeId').optional({ checkFalsy: true }).isMongoId().withMessage('Invalid salary grade ID format')
 ];
 

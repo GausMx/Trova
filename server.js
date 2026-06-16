@@ -19,6 +19,7 @@ app.use(
   cors({
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
     credentials: true,
+    exposedHeaders: ['Content-Disposition']
   })
 );
 
@@ -73,6 +74,7 @@ app.use('/api/grades', require('./routes/grade.routes'));
 app.use('/api/payroll', require('./routes/payroll.routes'));
 app.use('/api/compliance', require('./routes/compliance.routes'));
 app.use('/api/billing', require('./routes/billing.routes'));
+app.use('/api/constants', require('./routes/constant.routes'));
 
 // 404 Route handler
 app.use((req, res, next) => {

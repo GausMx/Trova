@@ -36,6 +36,12 @@ export default function Employees() {
     queryFn: () => api.get('/grades').then((res) => res.data),
   });
 
+  // Fetch Banks
+  const { data: banksRes } = useQuery({
+    queryKey: ['banks'],
+    queryFn: () => api.get('/constants/banks').then((res) => res.data),
+  });
+
   // 3. Create/Update Employee mutations
   const createEmpMutation = useMutation({
     mutationFn: (newEmployee) => api.post('/employees', newEmployee),
@@ -196,7 +202,9 @@ export default function Employees() {
     setEmpValue('transportAllowance', emp.transportAllowance);
     setEmpValue('otherAllowances', emp.otherAllowances);
     setEmpValue('bankName', emp.bankName || '');
+    setEmpValue('bankCode', emp.bankCode || '');
     setEmpValue('accountNumber', emp.accountNumber || '');
+    setEmpValue('accountName', emp.accountName || '');
     setEmpValue('gradeId', emp.gradeId?._id || emp.gradeId || '');
     setIsEmpModalOpen(true);
   };
@@ -219,6 +227,30 @@ export default function Employees() {
   const selectedGrade = grades.find(g => g._id === selectedGradeId);
 
   const employees = employeesRes?.data?.employees || [];
+
+  const selectedBankName = watchEmp('bankName');
+  const banks = banksRes?.data || [];
+  const selectedBank = banks.find(b => b.name === selectedBankName);
+
+  React.useEffect(() => {
+    if (selectedBank) {
+      setEmpValue('bankCode', selectedBank.code);
+    } else if (selectedBankName === '') {
+      setEmpValue('bankCode', '');
+    }
+  }, [selectedBankName, selectedBank, setEmpValue]);
+
+  React.useEffect(() => {
+    const editId = new URLSearchParams(window.location.search).get('edit');
+    if (editId && employees.length > 0) {
+      const empToEdit = employees.find(e => e._id === editId);
+      if (empToEdit) {
+        handleEditEmployee(empToEdit);
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+  }, [employees]);
   const filteredEmployees = employees.filter((emp) =>
     `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.email?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -651,9 +683,30 @@ export default function Employees() {
                     <label className="block text-xs font-semibold text-slate-500 mb-1">Bank Name</label>
                     <input
                       type="text"
-                      placeholder="Zenith Bank"
+                      list="bank-list"
+                      placeholder="Select or type bank name"
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
                       {...registerEmp('bankName')}
+                    />
+                    <datalist id="bank-list">
+                      {banks.map((b) => (
+                        <option key={b.code} value={b.name} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Bank Code</label>
+                    <input
+                      type="text"
+                      readOnly={!!selectedBank}
+                      placeholder={selectedBank ? "Auto-filled" : "Enter bank code manually"}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm ${
+                        selectedBank
+                          ? 'border-slate-200 bg-slate-50 text-slate-505 cursor-not-allowed focus:outline-none'
+                          : 'border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700'
+                      }`}
+                      {...registerEmp('bankCode')}
                     />
                   </div>
 
@@ -675,6 +728,16 @@ export default function Employees() {
                     {empErrors.accountNumber && (
                       <p className="text-red-650 text-xs mt-1">{empErrors.accountNumber.message}</p>
                     )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Account Name</label>
+                    <input
+                      type="text"
+                      placeholder="Name on bank account"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
+                      {...registerEmp('accountName')}
+                    />
                   </div>
                 </div>
               </div>

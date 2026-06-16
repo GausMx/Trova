@@ -69,5 +69,28 @@ module.exports = {
     DRAFT: 'draft',
     APPROVED: 'approved',
     PAID: 'paid'
+  },
+
+  // Nigerian bank codes
+  BANK_CODES: {
+    'GTBank': '058',
+    'Access Bank': '044',
+    'Zenith Bank': '057',
+    'First Bank': '011',
+    'UBA': '033',
+    'Fidelity Bank': '070',
+    'Sterling Bank': '232',
+    'Stanbic IBTC': '221',
+    'Union Bank': '032',
+    'Polaris Bank': '076',
+    'Wema Bank': '035',
+    'FCMB': '214',
+    'Keystone Bank': '082',
+    'Ecobank': '050',
+    'Heritage Bank': '030',
+    'Kuda Bank': '090267',
+    'Opay': '100004',
+    'Moniepoint': '090405',
+    'PalmPay': '100033'
   }
 };

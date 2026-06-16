@@ -3,9 +3,11 @@ const Employee = require('../models/Employee');
 const { calculateMonthlyPayroll, getWorkingDays } = require('../utils/payrollEngine');
 const catchAsync = require('../utils/catchAsync');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
-const { PAYROLL_STATUS } = require('../config/constants');
+const { PAYROLL_STATUS, BANK_CODES } = require('../config/constants');
 const { generatePayslipPdf } = require('../utils/payslipGenerator');
 const Papa = require('papaparse');
+const StatutoryCalendar = require('../models/StatutoryCalendar');
+const ComplianceRecord = require('../models/ComplianceRecord');
 
 /**
  * Helper to round values to 2 decimal places.
@@ -122,6 +124,36 @@ exports.computePayroll = catchAsync(async (req, res) => {
       totals,
       employees: calculatedEmployees
     });
+  }
+
+  // 6. Auto-create compliance records for the next month's obligations (PAYE, pension, NSITF)
+  const nextMonth = Number(month) === 12 ? 1 : Number(month) + 1;
+  const nextYear = Number(month) === 12 ? Number(year) + 1 : Number(year);
+  const startOfNextMonth = new Date(nextYear, nextMonth - 1, 1);
+  const endOfNextMonth = new Date(nextYear, nextMonth, 0, 23, 59, 59);
+
+  const calendarItems = await StatutoryCalendar.find({
+    remittanceType: { $in: ['PAYE', 'Pension', 'NSITF'] },
+    dueDate: { $gte: startOfNextMonth, $lte: endOfNextMonth }
+  });
+
+  for (const item of calendarItems) {
+    const existingRecord = await ComplianceRecord.findOne({
+      companyId: req.companyId,
+      obligationId: item._id,
+      month: nextMonth,
+      year: nextYear
+    });
+
+    if (!existingRecord) {
+      await ComplianceRecord.create({
+        companyId: req.companyId,
+        obligationId: item._id,
+        month: nextMonth,
+        year: nextYear,
+        status: 'pending'
+      });
+    }
   }
 
   return sendSuccess(res, `Payroll run calculated successfully as draft for ${month}/${year}`, { run }, 201);
@@ -493,13 +525,30 @@ exports.getPayrollRunById = catchAsync(async (req, res) => {
   const run = await PayrollRun.findOne({
     _id: req.params.id,
     companyId: req.companyId
-  });
+  }).populate('employees.employeeId');
 
   if (!run) {
     return sendError(res, 'Payroll run not found', 404);
   }
 
-  return sendSuccess(res, 'Payroll run details retrieved successfully', { run });
+  const runObj = run.toObject();
+
+  runObj.employees = runObj.employees.map((pe, idx) => {
+    const originalPe = run.employees[idx];
+    const emp = originalPe.employeeId;
+    const empId = emp ? (emp._id ? emp._id.toString() : emp.toString()) : '';
+    return {
+      ...pe,
+      employeeId: empId,
+      bankName: emp ? emp.bankName : '',
+      bankCode: emp ? emp.bankCode : '',
+      accountNumber: emp ? emp.accountNumber : '',
+      accountName: emp ? emp.accountName : '',
+      employeeStatus: emp ? emp.status : 'inactive'
+    };
+  });
+
+  return sendSuccess(res, 'Payroll run details retrieved successfully', { run: runObj });
 });
 
 /**
@@ -543,4 +592,141 @@ exports.getPayslip = catchAsync(async (req, res) => {
   res.setHeader('Content-Length', pdfBuffer.length);
 
   return res.end(pdfBuffer);
+});
+
+/**
+ * Helper to get month name.
+ */
+const getMonthName = (monthNum) => {
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  return months[monthNum - 1] || '';
+};
+
+/**
+ * Helper to dynamically resolve bank code.
+ */
+const getBankCode = (bankName) => {
+  if (!bankName) return '';
+  if (BANK_CODES[bankName]) return BANK_CODES[bankName];
+  const lowerName = bankName.toLowerCase().trim();
+  const found = Object.entries(BANK_CODES).find(([name]) => name.toLowerCase() === lowerName);
+  return found ? found[1] : '';
+};
+
+/**
+ * Generates bulk payment file in CSV format.
+ */
+exports.getPaymentFileCsv = catchAsync(async (req, res) => {
+  const run = await PayrollRun.findOne({
+    _id: req.params.id,
+    companyId: req.companyId
+  }).populate('employees.employeeId');
+
+  if (!run) {
+    return sendError(res, 'Payroll run not found', 404);
+  }
+
+  if (run.status !== 'approved' && run.status !== 'paid') {
+    return sendError(res, 'Payment files can only be generated for approved or paid payroll runs', 400);
+  }
+
+  // Filter out employees with missing bank details or inactive status
+  const activeEmployees = run.employees.filter(pe => {
+    const emp = pe.employeeId;
+    return emp && emp.status === 'active' && emp.accountNumber && emp.bankName;
+  });
+
+  const monthName = getMonthName(run.month);
+  
+  // Format rows
+  const rows = activeEmployees.map(pe => {
+    const emp = pe.employeeId;
+    const amount = pe.netSalary.toFixed(2);
+    const narration = `${monthName} ${run.year} Salary - ${emp.firstName} ${emp.lastName}`;
+    const bankCode = emp.bankCode || getBankCode(emp.bankName);
+    return [
+      emp.accountNumber,
+      emp.accountName || `${emp.firstName} ${emp.lastName}`,
+      emp.bankName,
+      bankCode,
+      amount,
+      narration
+    ];
+  });
+
+  // Headers
+  const headers = ['account_number', 'account_name', 'bank_name', 'bank_code', 'amount', 'narration'];
+  const csvData = [headers, ...rows];
+
+  const { stringify } = require('csv-stringify/sync');
+  const csvString = stringify(csvData);
+
+  const filename = `trova-salary-${monthName.toLowerCase()}-${run.year}.csv`;
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  return res.status(200).send(csvString);
+});
+
+/**
+ * Generates bulk payment file in Excel format.
+ */
+exports.getPaymentFileExcel = catchAsync(async (req, res) => {
+  const run = await PayrollRun.findOne({
+    _id: req.params.id,
+    companyId: req.companyId
+  }).populate('employees.employeeId');
+
+  if (!run) {
+    return sendError(res, 'Payroll run not found', 404);
+  }
+
+  if (run.status !== 'approved' && run.status !== 'paid') {
+    return sendError(res, 'Payment files can only be generated for approved or paid payroll runs', 400);
+  }
+
+  // Filter out employees with missing bank details or inactive status
+  const activeEmployees = run.employees.filter(pe => {
+    const emp = pe.employeeId;
+    return emp && emp.status === 'active' && emp.accountNumber && emp.bankName;
+  });
+
+  const monthName = getMonthName(run.month);
+
+  const XLSX = require('xlsx');
+
+  // Format rows
+  const rows = activeEmployees.map(pe => {
+    const emp = pe.employeeId;
+    const amount = pe.netSalary.toFixed(2);
+    const narration = `${monthName} ${run.year} Salary - ${emp.firstName} ${emp.lastName}`;
+    const bankCode = emp.bankCode || getBankCode(emp.bankName);
+    return {
+      account_number: emp.accountNumber,
+      account_name: emp.accountName || `${emp.firstName} ${emp.lastName}`,
+      bank_name: emp.bankName,
+      bank_code: bankCode,
+      amount,
+      narration
+    };
+  });
+
+  const headers = ['account_number', 'account_name', 'bank_name', 'bank_code', 'amount', 'narration'];
+  const worksheet = XLSX.utils.json_to_sheet(rows, { header: headers });
+  const workbook = XLSX.utils.book_new();
+
+  const sheetName = `Salary Payment ${monthName} ${run.year}`.substring(0, 31);
+  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+
+  // Generate buffer
+  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+  const filename = `trova-salary-${monthName.toLowerCase()}-${run.year}.xlsx`;
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  return res.status(200).send(buffer);
 });

@@ -2,7 +2,7 @@ const Employee = require('../models/Employee');
 const SalaryGrade = require('../models/SalaryGrade');
 const catchAsync = require('../utils/catchAsync');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
-const { EMPLOYEE_STATUS } = require('../config/constants');
+const { EMPLOYEE_STATUS, BANK_CODES } = require('../config/constants');
 
 /**
  * Creates a new Employee for the company.
@@ -65,6 +65,20 @@ exports.createEmployee = catchAsync(async (req, res) => {
     }
   }
 
+  // Resolve bank code and warning
+  let bankCode = '';
+  let warning;
+  if (bankName) {
+    if (BANK_CODES[bankName]) {
+      bankCode = BANK_CODES[bankName];
+    } else {
+      bankCode = req.body.bankCode || '';
+      warning = 'Bank code not found for this bank — please enter manually.';
+    }
+  } else if (req.body.bankCode !== undefined) {
+    bankCode = req.body.bankCode;
+  }
+
   // 3. Create employee
   const employee = await Employee.create({
     companyId: req.companyId,
@@ -77,13 +91,19 @@ exports.createEmployee = catchAsync(async (req, res) => {
     transportAllowance: finalTransport,
     otherAllowances: finalOther,
     bankName,
+    bankCode,
     accountNumber,
     accountName,
     gradeId: gradeId || undefined,
     salaryOverridden
   });
 
-  return sendSuccess(res, 'Employee created successfully', { employee }, 201);
+  const responseData = { employee };
+  if (warning) {
+    responseData.warning = warning;
+  }
+
+  return sendSuccess(res, 'Employee created successfully', responseData, 201);
 });
 
 /**
@@ -232,10 +252,14 @@ exports.updateEmployee = catchAsync(async (req, res) => {
     }
   }
 
-  // Check if any salary updates are provided to mark as overridden
+  // Check if any salary updates are provided and actually different from existing values to mark as overridden
   const salaryKeys = ['basicSalary', 'housingAllowance', 'transportAllowance', 'otherAllowances'];
-  const hasSalaryUpdates = salaryKeys.some(key => req.body[key] !== undefined);
-  if (hasSalaryUpdates) {
+  const hasSalaryChanges = salaryKeys.some(key => {
+    const passedVal = req.body[key];
+    if (passedVal === undefined || passedVal === '') return false;
+    return Number(passedVal) !== employee[key];
+  });
+  if (hasSalaryChanges) {
     employee.salaryOverridden = true;
   }
 
@@ -248,13 +272,35 @@ exports.updateEmployee = catchAsync(async (req, res) => {
   if (housingAllowance !== undefined) employee.housingAllowance = housingAllowance;
   if (transportAllowance !== undefined) employee.transportAllowance = transportAllowance;
   if (otherAllowances !== undefined) employee.otherAllowances = otherAllowances;
-  if (bankName !== undefined) employee.bankName = bankName;
+
+  let warning;
+  if (bankName !== undefined) {
+    employee.bankName = bankName;
+    if (bankName) {
+      if (BANK_CODES[bankName]) {
+        employee.bankCode = BANK_CODES[bankName];
+      } else {
+        employee.bankCode = req.body.bankCode || '';
+        warning = 'Bank code not found for this bank — please enter manually.';
+      }
+    } else {
+      employee.bankCode = '';
+    }
+  } else if (req.body.bankCode !== undefined) {
+    employee.bankCode = req.body.bankCode;
+  }
+
   if (accountNumber !== undefined) employee.accountNumber = accountNumber;
   if (accountName !== undefined) employee.accountName = accountName;
 
   const updatedEmployee = await employee.save();
 
-  return sendSuccess(res, 'Employee updated successfully', { employee: updatedEmployee });
+  const responseData = { employee: updatedEmployee };
+  if (warning) {
+    responseData.warning = warning;
+  }
+
+  return sendSuccess(res, 'Employee updated successfully', responseData);
 });
 
 /**

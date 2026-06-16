@@ -23,4 +23,18 @@ router.get(
   complianceController.getComplianceSummary
 );
 
+// GET /api/compliance/records -> Get compliance records scoped by companyId
+router.get(
+  '/records',
+  restrictTo('owner', 'admin', 'hr', 'finance'),
+  complianceController.getComplianceRecords
+);
+
+// PATCH /api/compliance/records/:id/complete -> Mark obligation as completed
+router.patch(
+  '/records/:id/complete',
+  restrictTo('owner', 'admin', 'finance'),
+  complianceController.completeComplianceRecord
+);
+
 module.exports = router;

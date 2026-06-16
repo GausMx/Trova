@@ -93,7 +93,7 @@ export default function Dashboard() {
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Open Obligations</p>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Pending Obligations</p>
             <p className="text-2xl font-bold text-slate-800 mt-0.5">
               {loadingCompliance ? '...' : pendingComplianceCount}
             </p>
@@ -140,7 +140,23 @@ export default function Dashboard() {
         {/* Right Side: Compliance Summary status */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-4">
-            <h3 className="font-bold text-slate-800">Statutory Compliance Status</h3>
+            <div className="flex items-center space-x-2">
+              <h3 className="font-bold text-slate-800">Statutory Compliance Status</h3>
+              {(() => {
+                const obligations = complianceRes?.data?.obligations || [];
+                const hasOverdue = obligations.some(o => o.status === 'overdue');
+                const hasDueSoon = obligations.some(o => o.status === 'due-soon' || o.status === 'due_soon' || o.status === 'action-required');
+                const allCompleted = obligations.length > 0 && obligations.every(o => o.status === 'completed');
+
+                let dotColor = 'bg-slate-300';
+                if (obligations.length > 0) {
+                  if (hasOverdue) dotColor = 'bg-rose-500 animate-pulse';
+                  else if (hasDueSoon) dotColor = 'bg-amber-500 animate-pulse';
+                  else if (allCompleted) dotColor = 'bg-emerald-500';
+                }
+                return <span className={`w-2 h-2 rounded-full ${dotColor}`} />;
+              })()}
+            </div>
             <Link to="/compliance" className="text-xs text-forest-700 font-semibold hover:underline">
               View Calendar
             </Link>
@@ -151,27 +167,42 @@ export default function Dashboard() {
             <p className="text-slate-400 text-sm">No compliance obligations pending.</p>
           ) : (
             <div className="space-y-3.5">
-              {complianceRes?.data?.obligations?.slice(0, 4).map((ob) => (
-                <div key={ob.remittanceType} className="flex items-center justify-between text-sm">
-                  <div>
-                    <p className="font-semibold text-slate-800">{ob.title}</p>
-                    <p className="text-slate-400 text-xs">Authority: {ob.authority}</p>
+              {complianceRes?.data?.obligations?.slice(0, 4).map((ob) => {
+                let badgeStyles = 'bg-slate-50 text-slate-500 border border-slate-200';
+                if (ob.status === 'completed') {
+                  badgeStyles = 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+                } else if (ob.status === 'due-soon' || ob.status === 'due_soon' || ob.status === 'action-required') {
+                  badgeStyles = 'bg-amber-50 text-amber-700 border border-amber-200';
+                } else if (ob.status === 'overdue') {
+                  badgeStyles = 'bg-rose-50 text-rose-700 border border-rose-200';
+                }
+
+                return (
+                  <div key={ob.id || ob.remittanceType} className="flex items-center justify-between text-sm">
+                    <div>
+                      <p className="font-semibold text-slate-800 line-clamp-1">{ob.title}</p>
+                      <p className="text-slate-400 text-xs">
+                        Authority: {ob.authority} • {ob.daysRemaining !== undefined ? (
+                          ob.daysRemaining < 0 ? (
+                            <span className="text-rose-600 font-medium">Overdue by {Math.abs(ob.daysRemaining)}d</span>
+                          ) : ob.daysRemaining === 0 ? (
+                            <span className="text-rose-600 font-medium">Due today</span>
+                          ) : ob.daysRemaining === 1 ? (
+                            <span className="text-amber-500 font-medium">Due tomorrow</span>
+                          ) : (
+                            <span>{ob.daysRemaining} days left</span>
+                          )
+                        ) : ''}
+                      </p>
+                    </div>
+                    <div className="shrink-0 ml-2">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${badgeStyles}`}>
+                        {ob.status?.replace(/-/g, ' ')}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
-                        ob.status === 'completed'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : ob.status === 'approved-pending-payment'
-                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
-                      }`}
-                    >
-                      {ob.status?.replace('-', ' ')}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

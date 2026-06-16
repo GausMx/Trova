@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import api from '../utils/api';
 import { CreditCard, Calendar, Plus, ChevronRight, CheckCircle, Wallet, Download, Upload, Save, AlertCircle, FileText, CheckCircle2 } from 'lucide-react';
@@ -23,6 +24,7 @@ export default function Payroll() {
   const canCompute = ['owner', 'admin', 'finance'].includes(user?.role);
   const canApprove = ['owner', 'admin', 'finance'].includes(user?.role);
   const canPay = ['owner', 'finance'].includes(user?.role);
+  const canDownload = ['owner', 'admin', 'finance'].includes(user?.role);
 
   // 1. Fetch payroll history list
   const { data: runsRes, isLoading } = useQuery({
@@ -379,6 +381,96 @@ export default function Payroll() {
                   <p className="text-base font-bold text-slate-800 mt-0.5 text-forest-700">₦{Number(selectedRunDetails.totals?.net || 0).toLocaleString()}</p>
                 </div>
               </div>
+
+              {/* Bulk Payment File Download Section */}
+              {(selectedRunDetails.status === 'approved' || selectedRunDetails.status === 'paid') && canDownload && (() => {
+                const missingDetailsEmployees = selectedRunDetails.employees?.filter(
+                  pe => pe.employeeStatus === 'active' && (!pe.accountNumber || !pe.bankName)
+                ) || [];
+
+                const handleDownload = (format) => {
+                  const ext = format === 'excel' ? 'xlsx' : 'csv';
+                  const mimeType = format === 'excel' 
+                    ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+                    : 'text/csv';
+                  const filename = `trova-salary-${selectedRunDetails.month}-${selectedRunDetails.year}.${ext}`;
+                  api.get(`/payroll/${selectedRunDetails._id}/payment-file/${format}`, { responseType: 'blob' })
+                    .then(response => {
+                      const url = window.URL.createObjectURL(new Blob([response.data], { type: mimeType }));
+                      const link = document.createElement('a');
+                      link.href = url;
+                      const disposition = response.headers['content-disposition'];
+                      let matchFilename = filename;
+                      if (disposition && disposition.indexOf('attachment') !== -1) {
+                        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                        const matches = filenameRegex.exec(disposition);
+                        if (matches != null && matches[1]) { 
+                          matchFilename = matches[1].replace(/['"]/g, '');
+                        }
+                      }
+                      link.setAttribute('download', matchFilename);
+                      document.body.appendChild(link);
+                      link.click();
+                      link.remove();
+                    })
+                    .catch(err => {
+                      setErrorMsg(err.response?.data?.message || 'Failed to download payment file.');
+                    });
+                };
+
+                return (
+                  <div className="space-y-4 border border-slate-200 bg-slate-50/30 p-5 rounded-2xl">
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-800">Download Payment Files</h4>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Upload this file to your corporate internet banking portal to pay all employees in one transaction. Supported by GTBank, Access, Zenith, First Bank, UBA, and most Nigerian banks.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        onClick={() => handleDownload('csv')}
+                        className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold transition-all hover:shadow-md"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Download CSV</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleDownload('excel')}
+                        className="inline-flex items-center space-x-2 px-4 py-2 border border-slate-350 hover:bg-slate-100 text-slate-700 bg-white rounded-lg text-sm font-semibold transition-all hover:shadow-sm"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Download Excel</span>
+                      </button>
+                    </div>
+
+                    {missingDetailsEmployees.length > 0 && (
+                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-xs text-amber-900">
+                        <p className="font-semibold flex items-center">
+                          <AlertCircle className="w-4 h-4 mr-1.5 text-amber-700 shrink-0" />
+                          <span>
+                            ⚠️ {missingDetailsEmployees.length} employee{missingDetailsEmployees.length > 1 ? 's are' : ' is'} missing bank details and will not appear in the payment file. Update their profiles before downloading.
+                          </span>
+                        </p>
+                        <div className="pl-5 flex flex-wrap gap-x-2 gap-y-1">
+                          {missingDetailsEmployees.map((emp, idx) => (
+                            <React.Fragment key={emp.employeeId}>
+                              <Link
+                                to={`/employees?edit=${emp.employeeId}`}
+                                className="underline font-semibold hover:text-amber-950 transition-colors"
+                              >
+                                {emp.name}
+                              </Link>
+                              {idx < missingDetailsEmployees.length - 1 && <span className="mx-1 text-amber-300">•</span>}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Sub-tab selection */}
               <div className="flex border-b border-slate-100">

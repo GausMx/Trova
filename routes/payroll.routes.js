@@ -84,4 +84,10 @@ router.get('/:id/attendance-sheet', restrictTo('owner', 'admin', 'hr', 'finance'
 // POST /:id/attendance/upload -> Bulk CSV upload for attendance (Owner, Admin, and Finance only)
 router.post('/:id/attendance/upload', restrictTo('owner', 'admin', 'finance'), checkSubscriptionLimits, upload.single('file'), payrollController.uploadAttendanceCsv);
 
+// GET /:id/payment-file/csv -> Download CSV payment file (Owner, Admin, and Finance only)
+router.get('/:id/payment-file/csv', restrictTo('owner', 'admin', 'finance'), payrollController.getPaymentFileCsv);
+
+// GET /:id/payment-file/excel -> Download Excel payment file (Owner, Admin, and Finance only)
+router.get('/:id/payment-file/excel', restrictTo('owner', 'admin', 'finance'), payrollController.getPaymentFileExcel);
+
 module.exports = router;
