@@ -22,9 +22,18 @@ const CompanySchema = new mongoose.Schema(
       type: Boolean,
       default: true
     },
+    subscriptionStatus: {
+      type: String,
+      enum: ['trial', 'active', 'unpaid', 'cancelled'],
+      default: 'trial'
+    },
     trialEndsAt: {
       type: Date,
       default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    },
+    inviteCode: {
+      type: String,
+      unique: true
     },
     status: {
       type: String,
@@ -40,5 +49,27 @@ const CompanySchema = new mongoose.Schema(
     timestamps: true
   }
 );
+
+// Synchronize isTrial and subscriptionStatus
+CompanySchema.pre('save', function (next) {
+  if (this.isNew && !this.inviteCode) {
+    this.inviteCode = 'TRV-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+  }
+  if (this.isModified('isTrial') || this.isNew) {
+    if (this.isTrial === false && this.subscriptionStatus === 'trial') {
+      this.subscriptionStatus = 'active';
+    } else if (this.isTrial === true && this.subscriptionStatus !== 'trial') {
+      this.subscriptionStatus = 'trial';
+    }
+  }
+  if (this.isModified('subscriptionStatus')) {
+    if (this.subscriptionStatus === 'trial') {
+      this.isTrial = true;
+    } else {
+      this.isTrial = false;
+    }
+  }
+  next();
+});
 
 module.exports = mongoose.model('Company', CompanySchema);

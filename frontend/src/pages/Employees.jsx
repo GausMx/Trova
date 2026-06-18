@@ -3,11 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/authStore';
 import api from '../utils/api';
-import { Users, Search, Plus, X, Trash2, CheckCircle2, UserCheck, RotateCcw, AlertTriangle, Layers, Edit2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Users, Search, Plus, X, Trash2, CheckCircle2, UserCheck, RotateCcw, AlertTriangle, Layers, Edit2, Lock } from 'lucide-react';
 
 export default function Employees() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
+  const hasFeature = useAuthStore((state) => state.hasFeature);
   const [activeTab, setActiveTab] = useState('directory'); // 'directory' or 'grades'
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -279,7 +281,7 @@ export default function Employees() {
                 <Plus className="w-4 h-4" />
                 <span>Add Employee</span>
               </button>
-            ) : (
+            ) : hasFeature('salary_grades') ? (
               <button
                 onClick={() => {
                   setEditingGrade(null);
@@ -291,7 +293,7 @@ export default function Employees() {
                 <Plus className="w-4 h-4" />
                 <span>Add Salary Grade</span>
               </button>
-            )}
+            ) : null}
           </div>
         )}
       </div>
@@ -322,6 +324,7 @@ export default function Employees() {
           <span className="flex items-center space-x-2">
             <Layers className="w-4 h-4" />
             <span>Salary Grades</span>
+            {!hasFeature('salary_grades') && <Lock className="w-3.5 h-3.5 text-slate-400" />}
           </span>
         </button>
       </div>
@@ -473,70 +476,88 @@ export default function Employees() {
 
       {/* Tab Content: Grades */}
       {activeTab === 'grades' && (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-          {loadingGrades ? (
-            <div className="p-8 text-center text-slate-500">Loading salary grades...</div>
-          ) : grades.length === 0 ? (
-            <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center">
-              <Layers className="w-12 h-12 text-slate-300 mb-3" />
-              <p className="text-sm font-medium">No Salary Grades defined</p>
-              <p className="text-xs text-slate-400 mt-1">Configure structural salary tiers for bulk employee management.</p>
+        !hasFeature('salary_grades') ? (
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm p-12 text-center flex flex-col items-center justify-center min-h-[350px]">
+            <div className="w-16 h-16 bg-forest-50 text-forest-700 rounded-2xl flex items-center justify-center mb-4 border border-forest-100 shadow-inner">
+              <Lock className="w-8 h-8 text-forest-900" />
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px] text-left border-collapse text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider text-xs">
-                    <th className="px-6 py-4">Grade Name</th>
-                    <th className="px-6 py-4">Level</th>
-                    <th className="px-6 py-4">Basic Salary</th>
-                    <th className="px-6 py-4">Allowances</th>
-                    <th className="px-6 py-4">Gross Salary</th>
-                    {isStaffManager && <th className="px-6 py-4 text-right">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {grades.map((grade) => (
-                    <tr key={grade._id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <span className="font-semibold text-slate-800 block">{grade.name}</span>
-                        <span className="text-xs text-slate-450 block truncate max-w-xs">{grade.description || 'No description'}</span>
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-slate-655">Level {grade.level}</td>
-                      <td className="px-6 py-4 font-medium text-slate-800">₦{Number(grade.basicSalary).toLocaleString()}</td>
-                      <td className="px-6 py-4 text-slate-500 text-xs">
-                        <p>Housing: ₦{Number(grade.housingAllowance).toLocaleString()}</p>
-                        <p>Transport: ₦{Number(grade.transportAllowance).toLocaleString()}</p>
-                        <p>Other: ₦{Number(grade.otherAllowances).toLocaleString()}</p>
-                      </td>
-                      <td className="px-6 py-4 font-bold text-forest-800">₦{Number(grade.grossSalary || (grade.basicSalary + grade.housingAllowance + grade.transportAllowance + grade.otherAllowances)).toLocaleString()}</td>
-                      {isStaffManager && (
-                        <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
-                          <button
-                            onClick={() => handleEditGrade(grade)}
-                            className="p-1.5 text-slate-400 hover:text-forest-700 hover:bg-slate-50 rounded-lg transition-colors inline-block"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`Soft delete salary grade ${grade.name}? Existing employees will retain current figures but won't be reassigned.`)) {
-                                deleteGradeMutation.mutate(grade._id);
-                              }
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-red-650 hover:bg-slate-50 rounded-lg transition-colors inline-block"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      )}
+            <h3 className="text-lg font-bold text-slate-800">Salary Grades is locked</h3>
+            <p className="text-slate-500 text-sm max-w-md mt-2">
+              Upgrade to the Growth or Enterprise plan to structure salary levels, allowances, and manage compensation automatically across your workforce.
+            </p>
+            <Link
+              to="/billing"
+              className="mt-6 inline-flex items-center space-x-2 px-5 py-2.5 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+            >
+              <span>Upgrade Subscription</span>
+            </Link>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            {loadingGrades ? (
+              <div className="p-8 text-center text-slate-500">Loading salary grades...</div>
+            ) : grades.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center">
+                <Layers className="w-12 h-12 text-slate-300 mb-3" />
+                <p className="text-sm font-medium">No Salary Grades defined</p>
+                <p className="text-xs text-slate-400 mt-1">Configure structural salary tiers for bulk employee management.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[800px] text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider text-xs">
+                      <th className="px-6 py-4">Grade Name</th>
+                      <th className="px-6 py-4">Level</th>
+                      <th className="px-6 py-4">Basic Salary</th>
+                      <th className="px-6 py-4">Allowances</th>
+                      <th className="px-6 py-4">Gross Salary</th>
+                      {isStaffManager && <th className="px-6 py-4 text-right">Actions</th>}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {grades.map((grade) => (
+                      <tr key={grade._id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className="font-semibold text-slate-800 block">{grade.name}</span>
+                          <span className="text-xs text-slate-450 block truncate max-w-xs">{grade.description || 'No description'}</span>
+                        </td>
+                        <td className="px-6 py-4 font-semibold text-slate-655">Level {grade.level}</td>
+                        <td className="px-6 py-4 font-medium text-slate-800">₦{Number(grade.basicSalary).toLocaleString()}</td>
+                        <td className="px-6 py-4 text-slate-500 text-xs">
+                          <p>Housing: ₦{Number(grade.housingAllowance).toLocaleString()}</p>
+                          <p>Transport: ₦{Number(grade.transportAllowance).toLocaleString()}</p>
+                          <p>Other: ₦{Number(grade.otherAllowances).toLocaleString()}</p>
+                        </td>
+                        <td className="px-6 py-4 font-bold text-forest-800">₦{Number(grade.grossSalary || (grade.basicSalary + grade.housingAllowance + grade.transportAllowance + grade.otherAllowances)).toLocaleString()}</td>
+                        {isStaffManager && (
+                          <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                            <button
+                              onClick={() => handleEditGrade(grade)}
+                              className="p-1.5 text-slate-400 hover:text-forest-700 hover:bg-slate-50 rounded-lg transition-colors inline-block"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Soft delete salary grade ${grade.name}? Existing employees will retain current figures but won't be reassigned.`)) {
+                                  deleteGradeMutation.mutate(grade._id);
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-red-650 hover:bg-slate-50 rounded-lg transition-colors inline-block"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )
       )}
 
       {/* Modal Overlay: Add/Edit Employee */}

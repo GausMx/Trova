@@ -4,11 +4,12 @@ import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import api from '../utils/api';
-import { CreditCard, Calendar, Plus, ChevronRight, CheckCircle, Wallet, Download, Upload, Save, AlertCircle, FileText, CheckCircle2 } from 'lucide-react';
+import { CreditCard, Calendar, Plus, ChevronRight, CheckCircle, Wallet, Download, Upload, Save, AlertCircle, FileText, CheckCircle2, Lock } from 'lucide-react';
 
 export default function Payroll() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
+  const hasFeature = useAuthStore((state) => state.hasFeature);
   const [selectedRunId, setSelectedRunId] = useState(null);
   const [detailsTab, setDetailsTab] = useState('breakdown'); // 'breakdown' or 'attendance'
   const [errorMsg, setErrorMsg] = useState('');
@@ -20,6 +21,7 @@ export default function Payroll() {
 
   // Manual attendance edits state
   const [attendanceEdits, setAttendanceEdits] = useState({});
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
 
   const canCompute = ['owner', 'admin', 'finance'].includes(user?.role);
   const canApprove = ['owner', 'admin', 'finance'].includes(user?.role);
@@ -117,6 +119,19 @@ export default function Payroll() {
         errMsg = err.response.data.message;
       }
       alert(`Unable to generate payslip PDF: ${errMsg}`);
+    }
+  };
+
+  const handleDownloadAllPayslips = async (runDetails) => {
+    if (!runDetails || !runDetails.employees || runDetails.employees.length === 0) return;
+    setIsDownloadingAll(true);
+    try {
+      for (const record of runDetails.employees) {
+        await handleDownloadPayslip(runDetails._id, record.employeeId, record.name);
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+    } finally {
+      setIsDownloadingAll(false);
     }
   };
 
@@ -383,7 +398,7 @@ export default function Payroll() {
               </div>
 
               {/* Bulk Payment File Download Section */}
-              {(selectedRunDetails.status === 'approved' || selectedRunDetails.status === 'paid') && canDownload && (() => {
+              {hasFeature('bulk_payment_file') && (selectedRunDetails.status === 'approved' || selectedRunDetails.status === 'paid') && canDownload && (() => {
                 const missingDetailsEmployees = selectedRunDetails.employees?.filter(
                   pe => pe.employeeStatus === 'active' && (!pe.accountNumber || !pe.bankName)
                 ) || [];
@@ -487,24 +502,38 @@ export default function Payroll() {
                     <span>Compensation Breakdown</span>
                   </span>
                 </button>
-                <button
-                  onClick={() => setDetailsTab('attendance')}
-                  className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${
-                    detailsTab === 'attendance'
-                      ? 'border-forest-800 text-forest-800'
-                      : 'border-transparent text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  <span className="flex items-center space-x-1.5">
-                    <Upload className="w-4 h-4" />
-                    <span>Attendance & Proration Sheet</span>
-                  </span>
-                </button>
+                {hasFeature('attendance_proration') && (
+                  <button
+                    onClick={() => setDetailsTab('attendance')}
+                    className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${
+                      detailsTab === 'attendance'
+                        ? 'border-forest-800 text-forest-800'
+                        : 'border-transparent text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    <span className="flex items-center space-x-1.5">
+                      <Upload className="w-4 h-4" />
+                      <span>Attendance & Proration Sheet</span>
+                    </span>
+                  </button>
+                )}
               </div>
 
               {/* Sub-tab: Compensation Breakdown */}
               {detailsTab === 'breakdown' && (
                 <div className="space-y-3">
+                  {hasFeature('pdf_payslips') && selectedRunDetails.employees?.length > 0 && (
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => handleDownloadAllPayslips(selectedRunDetails)}
+                        disabled={isDownloadingAll}
+                        className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-xs font-semibold shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>{isDownloadingAll ? 'Downloading...' : 'Download All Payslips'}</span>
+                      </button>
+                    </div>
+                  )}
                   <div className="border border-slate-100 rounded-xl overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[700px] text-left text-xs border-collapse">
@@ -539,13 +568,20 @@ export default function Payroll() {
                               <td className="px-4 py-3 text-rose-700">₦{Number(record.nhfDeduction || 0).toLocaleString()}</td>
                               <td className="px-4 py-3 font-semibold text-forest-700">₦{Number(record.netSalary).toLocaleString()}</td>
                               <td className="px-4 py-3 text-right">
-                                <button
-                                  onClick={() => handleDownloadPayslip(selectedRunDetails._id, record.employeeId, record.name)}
-                                  className="inline-flex items-center space-x-1 px-2.5 py-1 bg-forest-50 text-forest-700 rounded hover:bg-forest-100 font-medium transition-colors"
-                                >
-                                  <Download className="w-3.5 h-3.5" />
-                                  <span>PDF</span>
-                                </button>
+                                {hasFeature('pdf_payslips') ? (
+                                  <button
+                                    onClick={() => handleDownloadPayslip(selectedRunDetails._id, record.employeeId, record.name)}
+                                    className="inline-flex items-center space-x-1 px-2.5 py-1 bg-forest-50 text-forest-700 rounded hover:bg-forest-100 font-medium transition-colors"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                    <span>PDF</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 font-semibold flex items-center justify-end space-x-1">
+                                    <Lock className="w-3.5 h-3.5" />
+                                    <span>Locked</span>
+                                  </span>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -557,7 +593,7 @@ export default function Payroll() {
               )}
 
               {/* Sub-tab: Attendance Sheet & Proration */}
-              {detailsTab === 'attendance' && (
+              {hasFeature('attendance_proration') && detailsTab === 'attendance' && (
                 <div className="space-y-4">
                   {/* CSV Upload & Manual Save Action Header */}
                   {selectedRunDetails.status === 'draft' && canCompute && (

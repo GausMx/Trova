@@ -3,7 +3,6 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
 
 const connectDB = require('./config/db');
 const { sendError } = require('./utils/responseHandler');
@@ -38,17 +37,8 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true }));
 
 // Global rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 100, // Limit each IP to 100 requests per windowMs
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: 'Too many requests from this IP, please try again after 15 minutes.'
-  }
-});
-app.use('/api', limiter);
+const { apiLimiter } = require('./middleware/rateLimiter.middleware');
+app.use('/api', apiLimiter);
 
 // Root & Health check endpoints
 app.get('/', (req, res) => {
@@ -75,6 +65,9 @@ app.use('/api/payroll', require('./routes/payroll.routes'));
 app.use('/api/compliance', require('./routes/compliance.routes'));
 app.use('/api/billing', require('./routes/billing.routes'));
 app.use('/api/constants', require('./routes/constant.routes'));
+app.use('/api/copilot', require('./middleware/auth.middleware').protect, require('./middleware/roles.middleware').checkCompanyStatus, require('./middleware/roles.middleware').checkFeatureAccess('ai_copilot'), (req, res) => {
+  res.status(200).json({ success: true, message: 'AI Copilot mock endpoint' });
+});
 
 // 404 Route handler
 app.use((req, res, next) => {

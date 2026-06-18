@@ -40,6 +40,14 @@ export default function Dashboard() {
           <p className="text-slate-500 text-sm mt-1">
             Here is your company summary for today. All compliance tracks are active.
           </p>
+          {['owner', 'admin'].includes(user?.role) && user?.companyId?.inviteCode && (
+            <div className="inline-flex items-center space-x-2 mt-2 bg-slate-50 border border-slate-100 px-3 py-1 rounded-lg text-xs font-semibold text-slate-600">
+              <span>Company Invite Code:</span>
+              <code className="text-forest-900 bg-white border border-slate-200 px-1.5 py-0.5 rounded font-mono select-all">
+                {user.companyId.inviteCode}
+              </code>
+            </div>
+          )}
         </div>
         <div className="flex items-center space-x-3">
           <Link

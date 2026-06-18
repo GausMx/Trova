@@ -8,6 +8,7 @@ const { generatePayslipPdf } = require('../utils/payslipGenerator');
 const Papa = require('papaparse');
 const StatutoryCalendar = require('../models/StatutoryCalendar');
 const ComplianceRecord = require('../models/ComplianceRecord');
+const { getSubscriptionEmployeeLimit } = require('../utils/subscriptionLimits');
 
 /**
  * Helper to round values to 2 decimal places.
@@ -20,6 +21,25 @@ const round = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
  */
 exports.computePayroll = catchAsync(async (req, res) => {
   const { month, year, attendance = [] } = req.body;
+
+  // Check active employee limits on paid tiers/trials
+  const activeEmployeeCount = await Employee.countDocuments({
+    companyId: req.companyId,
+    status: 'active'
+  });
+
+  const limit = getSubscriptionEmployeeLimit(req.company);
+
+  if (activeEmployeeCount > limit) {
+    const tierName = req.company.subscriptionStatus === 'trial' ? 'trial' : `${req.company.subscriptionTier} plan`;
+    return res.status(403).json({
+      success: false,
+      message: `Your active employee count (${activeEmployeeCount}) exceeds the ${tierName} limit of ${limit} employees. Upgrade your plan to process payroll.`,
+      currentCount: activeEmployeeCount,
+      limit,
+      upgradeUrl: '/billing'
+    });
+  }
 
   // 1. Check if a payroll run for this period already exists and is locked
   const existingRun = await PayrollRun.findOne({

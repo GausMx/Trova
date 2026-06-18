@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuthStore } from '../store/authStore';
-import { ShieldCheck, Calendar, Bell, AlertCircle, FileText, CheckCircle2, RefreshCw, X } from 'lucide-react';
+import { ShieldCheck, Calendar, Bell, AlertCircle, FileText, CheckCircle2, RefreshCw, X, Lock } from 'lucide-react';
 
 export default function Compliance() {
-  const { user } = useAuthStore();
+  const { user, hasFeature } = useAuthStore();
   const canMarkComplete = ['owner', 'admin', 'finance'].includes(user?.role);
 
   // Modal states
@@ -18,12 +19,14 @@ export default function Compliance() {
   const { data: calendarRes, isLoading: loadingCalendar, refetch: refetchCalendar } = useQuery({
     queryKey: ['complianceCalendar'],
     queryFn: () => api.get('/compliance/calendar').then((res) => res.data),
+    enabled: !!hasFeature?.('compliance_calendar'),
   });
 
   // 2. Fetch current month's obligation statuses
   const { data: summaryRes, isLoading: loadingSummary, refetch: refetchSummary } = useQuery({
     queryKey: ['complianceSummary'],
     queryFn: () => api.get('/compliance/summary').then((res) => res.data),
+    enabled: !!hasFeature?.('compliance_calendar'),
   });
 
   const handleRefresh = () => {
@@ -62,6 +65,25 @@ export default function Compliance() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto font-sans relative">
+      {!hasFeature?.('compliance_calendar') && (
+        <div className="absolute inset-0 bg-slate-50/50 backdrop-blur-sm z-30 flex items-center justify-center p-6 rounded-2xl min-h-[400px]">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl p-8 max-w-md text-center flex flex-col items-center justify-center">
+            <div className="w-16 h-16 bg-forest-50 text-forest-700 rounded-2xl flex items-center justify-center mb-4 border border-forest-100 shadow-inner">
+              <Lock className="w-8 h-8 text-forest-900" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-800">Compliance Calendar is locked</h3>
+            <p className="text-slate-500 text-sm mt-2">
+              Upgrade to the Growth or Enterprise plan to track deadlines, auto-generate obligations for PAYE, PENCOM, NSITF, and CAC Annual Returns, and get audit-ready logs.
+            </p>
+            <Link
+              to="/billing"
+              className="mt-6 inline-flex items-center space-x-2 px-6 py-2.5 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+            >
+              <span>Upgrade Subscription</span>
+            </Link>
+          </div>
+        </div>
+      )}
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

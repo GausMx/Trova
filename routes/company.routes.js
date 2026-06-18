@@ -2,7 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const companyController = require('../controllers/company.controller');
 const { protect } = require('../middleware/auth.middleware');
-const { restrictTo, checkCompanyStatus } = require('../middleware/roles.middleware');
+const { restrictTo, checkCompanyStatus, checkSubscriptionActive } = require('../middleware/roles.middleware');
 const validate = require('../middleware/validate.middleware');
 
 const router = express.Router();
@@ -18,6 +18,7 @@ router.get('/me', companyController.getCompanyProfile);
 router.put(
   '/me',
   restrictTo('owner', 'admin'),
+  checkSubscriptionActive,
   [
     body('name')
       .optional()

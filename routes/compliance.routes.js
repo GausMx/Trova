@@ -1,13 +1,15 @@
 const express = require('express');
 const complianceController = require('../controllers/compliance.controller');
 const { protect } = require('../middleware/auth.middleware');
-const { restrictTo, checkCompanyStatus } = require('../middleware/roles.middleware');
+const { restrictTo, checkCompanyStatus, checkFeatureAccess, checkSubscriptionActive } = require('../middleware/roles.middleware');
 
 const router = express.Router();
 
 // Apply base protection and company status checking middleware to all routes
 router.use(protect);
 router.use(checkCompanyStatus);
+router.use(checkSubscriptionActive);
+router.use(checkFeatureAccess('compliance_calendar'));
 
 // GET /api/compliance/calendar -> Get upcoming deadlines for the next 30 days
 router.get(

@@ -2,7 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const gradeController = require('../controllers/grade.controller');
 const { protect } = require('../middleware/auth.middleware');
-const { restrictTo, checkCompanyStatus } = require('../middleware/roles.middleware');
+const { restrictTo, checkCompanyStatus, checkFeatureAccess, checkSubscriptionActive } = require('../middleware/roles.middleware');
 const validate = require('../middleware/validate.middleware');
 
 const router = express.Router();
@@ -10,6 +10,8 @@ const router = express.Router();
 // Apply auth protection and company active check to all grade routes
 router.use(protect);
 router.use(checkCompanyStatus);
+router.use(checkSubscriptionActive);
+router.use(checkFeatureAccess('salary_grades'));
 
 const gradeValidationRules = [
   body('name')

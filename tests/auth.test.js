@@ -115,6 +115,8 @@ describe('Authentication API Endpoint Integration Tests', () => {
         .post('/api/auth/register')
         .send(validRegistrationData);
 
+      const company = await Company.findOne({ name: validRegistrationData.companyName });
+
       // 2. Register a second user as admin under the same company
       const adminData = {
         companyName: validRegistrationData.companyName,
@@ -123,7 +125,8 @@ describe('Authentication API Endpoint Integration Tests', () => {
         lastName: 'Admin',
         email: 'bisi@acme.ng',
         password: 'adminPassword123',
-        role: 'admin'
+        role: 'admin',
+        inviteCode: company.inviteCode
       };
 
       const res = await request(app)

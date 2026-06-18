@@ -3,12 +3,32 @@ const SalaryGrade = require('../models/SalaryGrade');
 const catchAsync = require('../utils/catchAsync');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { EMPLOYEE_STATUS, BANK_CODES } = require('../config/constants');
+const { getSubscriptionEmployeeLimit } = require('../utils/subscriptionLimits');
 
 /**
  * Creates a new Employee for the company.
  * Automatically scopes companyId and generates staffId via model pre-save hook.
  */
 exports.createEmployee = catchAsync(async (req, res) => {
+  // Check active employee limits on paid tiers/trials
+  const activeEmployeeCount = await Employee.countDocuments({
+    companyId: req.companyId,
+    status: 'active'
+  });
+
+  const limit = getSubscriptionEmployeeLimit(req.company);
+
+  if (activeEmployeeCount >= limit) {
+    const tierName = req.company.subscriptionStatus === 'trial' ? 'trial' : `${req.company.subscriptionTier} plan`;
+    return res.status(403).json({
+      success: false,
+      message: `You have reached the ${tierName} limit of ${limit} employees. Upgrade your plan to add more.`,
+      currentCount: activeEmployeeCount,
+      limit,
+      upgradeUrl: '/billing'
+    });
+  }
+
   const {
     firstName,
     lastName,

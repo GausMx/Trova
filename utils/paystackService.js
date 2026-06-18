@@ -63,17 +63,62 @@ const initializeTransaction = async (email, amount, planCode, metadata) => {
 const verifySignature = (signature, rawBody) => {
   if (!signature || !rawBody) return false;
 
-  const secret = process.env.PAYSTACK_WEBHOOK_SECRET || 'super_secret_paystack_webhook_12345!';
+  const secret = process.env.PAYSTACK_WEBHOOK_SECRET;
+  if (!secret && process.env.NODE_ENV === 'production') {
+    throw new Error('PAYSTACK_WEBHOOK_SECRET environment variable is required in production');
+  }
   
   const hash = crypto
-    .createHmac('sha512', secret)
+    .createHmac('sha512', secret || 'super_secret_paystack_webhook_12345!')
     .update(rawBody)
     .digest('hex');
 
   return hash === signature;
 };
 
+/**
+ * Verifies a transaction status with Paystack.
+ * 
+ * @param {string} reference - Paystack transaction reference
+ * @returns {Promise<Object>} Verification details
+ */
+const verifyTransaction = async (reference) => {
+  if (reference && (reference.startsWith('REF_mock_') || reference === 'test_reference')) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Verification of mock transaction references is not permitted in production');
+    }
+    return {
+      status: 'success',
+      amount: 2500000,
+      metadata: {
+        companyId: 'mock_company_id_123',
+        tier: 'starter'
+      }
+    };
+  }
+
+  const secretKey = process.env.PAYSTACK_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error('Paystack secret key is missing in environment configurations');
+  }
+
+  const response = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${secretKey}`
+    }
+  });
+
+  const resData = await response.json();
+  if (!response.ok || !resData.status) {
+    throw new Error(resData.message || 'Failed to verify transaction with Paystack');
+  }
+
+  return resData.data;
+};
+
 module.exports = {
   initializeTransaction,
-  verifySignature
+  verifySignature,
+  verifyTransaction
 };

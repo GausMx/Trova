@@ -166,6 +166,25 @@ export default function Register() {
                     <option value="finance">Finance Manager (Payroll & Compliance)</option>
                   </select>
                 </div>
+
+                {selectedRole !== 'owner' && (
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Company Invite/Access Code</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. TRV-XXXXXX"
+                      className={`w-full px-4 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 ${
+                        errors.inviteCode
+                          ? 'border-red-300 focus:ring-red-200 focus:border-red-500'
+                          : 'border-slate-300 focus:ring-forest-100 focus:border-forest-700'
+                      }`}
+                      {...register('inviteCode', { required: 'Invite code is required to join an existing company' })}
+                    />
+                    {errors.inviteCode && (
+                      <p className="text-red-600 text-xs mt-1">{errors.inviteCode.message}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/authStore';
@@ -9,6 +9,8 @@ import Employees from './pages/Employees';
 import Payroll from './pages/Payroll';
 import Compliance from './pages/Compliance';
 import Billing from './pages/Billing';
+import BillingCallback from './pages/BillingCallback';
+import api from './utils/api';
 import { LayoutDashboard, Users, CreditCard, ShieldCheck, LogOut, Briefcase, Receipt, Menu, X } from 'lucide-react';
 
 const queryClient = new QueryClient({
@@ -36,6 +38,117 @@ const MainLayout = ({ children }) => {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // Background fetch latest user context on mount
+  useEffect(() => {
+    const fetchMe = async () => {
+      try {
+        const res = await api.get('/auth/me');
+        if (res.data?.success && res.data?.data?.user) {
+          useAuthStore.getState().setAuth(
+            res.data.data.user,
+            useAuthStore.getState().accessToken,
+            useAuthStore.getState().refreshToken
+          );
+        }
+      } catch (err) {
+        console.error('Failed to fetch current user context', err);
+      }
+    };
+    fetchMe();
+  }, []);
+
+  const company = user?.companyId;
+  const companyId = company?._id;
+  const subscriptionStatus = company?.subscriptionStatus;
+  const trialEndsAt = company?.trialEndsAt;
+
+  // Banner dismissal state
+  const [isDismissed, setIsDismissed] = useState(false);
+
+  useEffect(() => {
+    if (companyId) {
+      const dismissed = localStorage.getItem(`dismissed-trial-expired-${companyId}`) === 'true';
+      setIsDismissed(dismissed);
+    }
+  }, [companyId]);
+
+  const handleDismiss = () => {
+    if (companyId) {
+      localStorage.setItem(`dismissed-trial-expired-${companyId}`, 'true');
+      setIsDismissed(true);
+    }
+  };
+
+  // Compute remaining trial days
+  let daysRemaining = 0;
+  let isTrialActive = false;
+  let isTrialExpired = false;
+
+  if (subscriptionStatus === 'trial' && trialEndsAt) {
+    isTrialActive = true;
+    const msDiff = new Date(trialEndsAt).getTime() - Date.now();
+    daysRemaining = Math.max(0, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
+  } else if (subscriptionStatus !== 'trial' && trialEndsAt && new Date(trialEndsAt).getTime() < Date.now()) {
+    isTrialExpired = true;
+  }
+
+  const isSubscriptionActive = subscriptionStatus === 'active';
+  const isLockedOut = !isTrialActive && !isSubscriptionActive;
+
+  const renderBanner = () => {
+    if (isTrialActive) {
+      if (daysRemaining > 7) {
+        return (
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white text-center py-2 px-4 text-sm font-medium flex items-center justify-center space-x-3 shrink-0 shadow-sm transition-all duration-300">
+            <span>Your free trial ends in <span className="font-bold">{daysRemaining}</span> days. Upgrade to Growth or Enterprise to keep advanced features.</span>
+            <Link
+              to="/billing"
+              className="bg-white text-emerald-800 px-3 py-1 rounded-md text-xs font-semibold hover:bg-emerald-50 transition-colors shadow-sm"
+            >
+              Upgrade Plan
+            </Link>
+          </div>
+        );
+      } else {
+        return (
+          <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white text-center py-2.5 px-4 text-sm font-medium flex items-center justify-center space-x-3 shrink-0 shadow-sm transition-all duration-300">
+            <span>⚠️ Your free trial ends in <span className="font-bold">{daysRemaining}</span> days. Upgrade your subscription now to avoid service interruption.</span>
+            <Link
+              to="/billing"
+              className="bg-white text-amber-900 px-3 py-1 rounded-md text-xs font-semibold hover:bg-amber-50 transition-colors shadow-sm"
+            >
+              Upgrade Now
+            </Link>
+          </div>
+        );
+      }
+    }
+
+    if (isTrialExpired && !isDismissed) {
+      return (
+        <div className="bg-gradient-to-r from-rose-600 to-red-700 text-white py-2.5 px-6 text-sm font-medium flex items-center justify-between shrink-0 shadow-sm transition-all duration-300">
+          <div className="flex items-center space-x-3 mx-auto">
+            <span>Your free trial has expired. You have been downgraded to the Starter tier. Upgrade to Growth or Enterprise to restore advanced features.</span>
+            <Link
+              to="/billing"
+              className="bg-white text-rose-800 px-3 py-1 rounded-md text-xs font-semibold hover:bg-rose-50 transition-colors shadow-sm"
+            >
+              Upgrade Plan
+            </Link>
+          </div>
+          <button
+            onClick={handleDismiss}
+            className="text-white/80 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   const handleLogout = () => {
     clearAuth();
     navigate('/login');
@@ -52,8 +165,41 @@ const MainLayout = ({ children }) => {
     navItems.push({ name: 'Billing', path: '/billing', icon: Receipt });
   }
 
+  if (!user) return null;
+
+  const isBillingRoute = location.pathname === '/billing' || location.pathname === '/billing/callback';
+
+  if (isLockedOut && !isBillingRoute) {
+    if (user?.role === 'owner') {
+      return <Navigate to="/billing" replace />;
+    } else {
+      return (
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center font-sans">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-xl p-8 space-y-6">
+            <div className="w-16 h-16 bg-rose-50 text-rose-700 rounded-2xl flex items-center justify-center mx-auto border border-rose-100 shadow-inner">
+              <ShieldCheck className="w-8 h-8 text-rose-600" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-800">Subscription Required</h3>
+            <p className="text-slate-500 text-sm">
+              Your company's free trial has expired and a subscription is required. Please ask the company owner to configure a billing plan.
+            </p>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+            >
+              <LogOut className="w-4 h-4 shrink-0" />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+  }
+
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+    <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-sans">
+      {renderBanner()}
+      <div className="flex flex-1 overflow-hidden">
       {/* Sidebar Drawer Backdrop for Mobile */}
       {isSidebarOpen && (
         <div
@@ -167,7 +313,8 @@ const MainLayout = ({ children }) => {
         </main>
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 export default function App() {
@@ -226,6 +373,16 @@ export default function App() {
               <ProtectedRoute>
                 <MainLayout>
                   <Billing />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/billing/callback"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <BillingCallback />
                 </MainLayout>
               </ProtectedRoute>
             }

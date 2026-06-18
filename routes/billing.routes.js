@@ -35,4 +35,11 @@ router.get(
   billingController.getBillingStatus
 );
 
+// GET /verify/:reference -> Verify and activate payment (Owner and Admin only)
+router.get(
+  '/verify/:reference',
+  restrictTo('owner', 'admin'),
+  billingController.verifySubscription
+);
+
 module.exports = router;

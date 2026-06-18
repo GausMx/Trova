@@ -93,6 +93,22 @@ api.interceptors.response.use(
       }
     }
 
+    // Check if error is due to expired subscription/trial
+    if (error.response?.status === 403 && error.response?.data?.code === 'SUBSCRIPTION_REQUIRED') {
+      try {
+        const meRes = await axios.get(`${api.defaults.baseURL}/auth/me`, {
+          headers: { Authorization: `Bearer ${useAuthStore.getState().accessToken}` }
+        });
+        if (meRes.data?.success && meRes.data?.data?.user) {
+          useAuthStore.getState().setAuth(
+            meRes.data.data.user,
+            useAuthStore.getState().accessToken,
+            useAuthStore.getState().refreshToken
+          );
+        }
+      } catch (_) {}
+    }
+
     return Promise.reject(error);
   }
 );

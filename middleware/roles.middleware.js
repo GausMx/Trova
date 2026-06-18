@@ -3,6 +3,7 @@ const Employee = require('../models/Employee');
 const catchAsync = require('../utils/catchAsync');
 const { sendError } = require('../utils/responseHandler');
 const { COMPANY_STATUS, SUBSCRIPTION_TIERS } = require('../config/constants');
+const { getSubscriptionEmployeeLimit } = require('../utils/subscriptionLimits');
 
 /**
  * Middleware to restrict route access to specific user roles.
@@ -72,8 +73,6 @@ const checkSubscriptionLimits = catchAsync(async (req, res, next) => {
         403
       );
     }
-    // Active trial: Growth features with no employee limits
-    return next();
   }
 
   // 2. Check active employee limits on paid tiers
@@ -82,22 +81,118 @@ const checkSubscriptionLimits = catchAsync(async (req, res, next) => {
     status: 'active'
   });
 
-  if (company.subscriptionTier === SUBSCRIPTION_TIERS.STARTER) {
-    if (activeEmployeeCount > 20) {
-      return sendError(
-        res,
-        `Your active employee count (${activeEmployeeCount}) exceeds the 20-employee limit of the Starter tier. Please upgrade your subscription on the billing page.`,
-        403
-      );
+  const limit = getSubscriptionEmployeeLimit(company);
+
+  if (activeEmployeeCount > limit) {
+    const tierName = company.subscriptionStatus === 'trial' ? 'trial' : `${company.subscriptionTier} plan`;
+    return res.status(403).json({
+      success: false,
+      message: `Your active employee count (${activeEmployeeCount}) exceeds the ${tierName} limit of ${limit} employees. Upgrade your plan to process payroll.`,
+      currentCount: activeEmployeeCount,
+      limit,
+      upgradeUrl: '/billing'
+    });
+  }
+
+  next();
+});
+
+const TIER_FEATURES = {
+  starter: [
+    'employee_management',
+    'basic_payroll',
+    'pdf_payslips',
+    'email_support'
+  ],
+  growth: [
+    'employee_management',
+    'basic_payroll',
+    'salary_grades',
+    'attendance_proration',
+    'pdf_payslips',
+    'compliance_calendar',
+    'bulk_payment_file',
+    'email_support',
+    'priority_support'
+  ],
+  enterprise: [
+    'employee_management',
+    'basic_payroll',
+    'salary_grades',
+    'attendance_proration',
+    'pdf_payslips',
+    'compliance_calendar',
+    'ai_copilot',
+    'bulk_payment_file',
+    'custom_paye_config',
+    'unlimited_employees',
+    'email_support',
+    'priority_support',
+    'phone_support',
+    'sla_guarantee'
+  ]
+};
+
+const getRequiredTier = (feature) => {
+  const tiers = ['starter', 'growth', 'enterprise'];
+  for (const tier of tiers) {
+    if (TIER_FEATURES[tier].includes(feature)) {
+      return tier;
     }
-  } else if (company.subscriptionTier === SUBSCRIPTION_TIERS.GROWTH) {
-    if (activeEmployeeCount > 100) {
-      return sendError(
-        res,
-        `Your active employee count (${activeEmployeeCount}) exceeds the 100-employee limit of the Growth tier. Please upgrade your subscription on the billing page.`,
-        403
-      );
+  }
+  return 'enterprise';
+};
+
+const checkFeatureAccess = (feature) => {
+  return catchAsync(async (req, res, next) => {
+    let company = req.company;
+    if (!company && req.companyId) {
+      company = await Company.findById(req.companyId);
+      req.company = company;
     }
+
+    if (!company) {
+      return sendError(res, 'Company context missing.', 400);
+    }
+
+    let effectiveTier = company.subscriptionTier || 'starter';
+    if (company.subscriptionStatus === 'trial') {
+      effectiveTier = 'growth';
+    }
+
+    const features = TIER_FEATURES[effectiveTier] || [];
+    if (!features.includes(feature)) {
+      const requiredTier = getRequiredTier(feature);
+      return res.status(403).json({
+        success: false,
+        message: 'This feature requires a higher plan.',
+        requiredTier,
+        currentTier: company.subscriptionTier,
+        upgradeUrl: '/billing'
+      });
+    }
+
+    next();
+  });
+};
+
+const checkSubscriptionActive = catchAsync(async (req, res, next) => {
+  if (!req.company) {
+    return sendError(res, 'Company context missing.', 400);
+  }
+
+  const company = req.company;
+
+  const isTrialActive = company.subscriptionStatus === 'trial' && company.trialEndsAt && Date.now() < new Date(company.trialEndsAt).getTime();
+  const isPaidActive = company.subscriptionStatus === 'active';
+
+  if (!isTrialActive && !isPaidActive) {
+    return res.status(403).json({
+      success: false,
+      message: 'Trial has ended and subscription is required.',
+      code: 'SUBSCRIPTION_REQUIRED',
+      upgradeUrl: '/billing'
+    });
   }
 
   next();
@@ -106,5 +201,7 @@ const checkSubscriptionLimits = catchAsync(async (req, res, next) => {
 module.exports = {
   restrictTo,
   checkCompanyStatus,
-  checkSubscriptionLimits
+  checkSubscriptionLimits,
+  checkFeatureAccess,
+  checkSubscriptionActive
 };

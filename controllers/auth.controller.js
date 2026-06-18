@@ -11,17 +11,25 @@ const { USER_ROLES, SUBSCRIPTION_TIERS } = require('../config/constants');
  * @returns {string} Signed JWT
  */
 const generateToken = (user) => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret && process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET environment variable is required in production');
+  }
   return jwt.sign(
     { id: user._id, companyId: user.companyId, role: user.role },
-    process.env.JWT_SECRET || 'super_secret_trova_access_token_12345!',
+    secret || 'super_secret_trova_access_token_12345!',
     { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
   );
 };
 
 const generateRefreshToken = (user) => {
+  const secret = process.env.JWT_REFRESH_SECRET;
+  if (!secret && process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_REFRESH_SECRET environment variable is required in production');
+  }
   return jwt.sign(
     { id: user._id },
-    process.env.JWT_REFRESH_SECRET || 'super_secret_trova_refresh_token_67890!',
+    secret || 'super_secret_trova_refresh_token_67890!',
     { expiresIn: '7d' }
   );
 };
@@ -31,7 +39,7 @@ const generateRefreshToken = (user) => {
  * Employs sequential creation with manual rollback to guarantee standalone MongoDB compatibility.
  */
 exports.register = catchAsync(async (req, res, next) => {
-  const { companyName, industry, firstName, lastName, email, password, role } = req.body;
+  const { companyName, industry, firstName, lastName, email, password, role, inviteCode } = req.body;
 
   const targetRole = role || USER_ROLES.OWNER;
 
@@ -63,6 +71,11 @@ exports.register = catchAsync(async (req, res, next) => {
     if (!company) {
       return sendError(res, 'Company not found. Please register as an Owner first to create the company.', 404);
     }
+
+    // Verify invite code for non-owners to prevent unauthorized self-joins
+    if (!inviteCode || inviteCode.trim().toUpperCase() !== company.inviteCode) {
+      return sendError(res, 'Access denied. A valid company invitation code is required to register with this role.', 403);
+    }
   }
 
   // 2. Create the User linked to the company
@@ -79,8 +92,9 @@ exports.register = catchAsync(async (req, res, next) => {
     const token = generateToken(user);
     const refreshToken = generateRefreshToken(user);
     
-    // Sanitize user object for response (remove password hash)
-    const sanitizedUser = user.toObject();
+    // Sanitize user object for response (remove password hash) and populate companyId
+    const populatedUser = await User.findById(user._id).populate('companyId');
+    const sanitizedUser = populatedUser.toObject();
     delete sanitizedUser.password;
 
     return sendSuccess(res, 'User registered successfully', {
@@ -104,8 +118,8 @@ exports.register = catchAsync(async (req, res, next) => {
 exports.login = catchAsync(async (req, res, next) => {
   const { email, password } = req.body;
 
-  // 1. Fetch user by email including the password field
-  const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+  // 1. Fetch user by email including the password field and populate companyId
+  const user = await User.findOne({ email: email.toLowerCase() }).select('+password').populate('companyId');
   if (!user || !(await user.comparePassword(password))) {
     return sendError(res, 'Invalid email or password', 401);
   }
@@ -131,7 +145,8 @@ exports.login = catchAsync(async (req, res, next) => {
  * Gets details of the currently authenticated User.
  */
 exports.getMe = catchAsync(async (req, res) => {
-  const sanitizedUser = req.user.toObject();
+  const user = await User.findById(req.user._id).populate('companyId');
+  const sanitizedUser = user.toObject();
   delete sanitizedUser.password;
 
   return sendSuccess(res, 'Current user retrieved successfully', {
@@ -150,9 +165,14 @@ exports.refresh = catchAsync(async (req, res) => {
   }
 
   try {
+    const secret = process.env.JWT_REFRESH_SECRET;
+    if (!secret && process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_REFRESH_SECRET environment variable is required in production');
+    }
+
     const decoded = jwt.verify(
       refreshToken,
-      process.env.JWT_REFRESH_SECRET || 'super_secret_trova_refresh_token_67890!'
+      secret || 'super_secret_trova_refresh_token_67890!'
     );
 
     const user = await User.findById(decoded.id);

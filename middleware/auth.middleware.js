@@ -21,7 +21,11 @@ const protect = catchAsync(async (req, res, next) => {
 
   try {
     // Verify JWT
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'super_secret_trova_access_token_12345!');
+    const secret = process.env.JWT_SECRET;
+    if (!secret && process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET environment variable is required in production');
+    }
+    const decoded = jwt.verify(token, secret || 'super_secret_trova_access_token_12345!');
 
     // Fetch user and ensure they still exist and are active
     const user = await User.findById(decoded.id);
@@ -36,6 +40,22 @@ const protect = catchAsync(async (req, res, next) => {
     // Attach user information to request context
     req.user = user;
     req.companyId = user.companyId;
+
+    // Fetch and check company trial expiry
+    const Company = require('../models/Company');
+    const company = await Company.findById(user.companyId);
+    if (company) {
+      if (company.subscriptionStatus === 'trial' && company.trialEndsAt &&
+          Date.now() >= company.trialEndsAt.getTime()) {
+        await Company.findByIdAndUpdate(company._id, {
+          subscriptionStatus: 'unpaid',
+          isTrial: false
+        });
+        company.subscriptionStatus = 'unpaid';
+        company.isTrial = false;
+      }
+      req.company = company;
+    }
 
     next();
   } catch (error) {
