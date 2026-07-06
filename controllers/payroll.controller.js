@@ -201,7 +201,8 @@ exports.computePayroll = catchAsync(async (req, res) => {
     }
   }
 
-  return sendSuccess(res, `Payroll run calculated successfully as draft for ${month}/${year}`, { run }, 201);
+  const populatedRun = await PayrollRun.findById(run._id).populate('employees.employeeId');
+  return sendSuccess(res, `Payroll run calculated successfully as draft for ${month}/${year}`, { run: populatedRun }, 201);
 });
 
 /**
@@ -332,7 +333,8 @@ exports.updateAttendance = catchAsync(async (req, res) => {
 
   const updatedRun = await run.save();
 
-  return sendSuccess(res, 'Payroll run attendance updated and recalculated successfully', { run: updatedRun });
+  const populatedRun = await PayrollRun.findById(updatedRun._id).populate('employees.employeeId');
+  return sendSuccess(res, 'Payroll run attendance updated and recalculated successfully', { run: populatedRun });
 });
 
 /**
@@ -548,8 +550,9 @@ exports.uploadAttendanceCsv = catchAsync(async (req, res) => {
 
   await run.save();
 
+  const populatedRun = await PayrollRun.findById(run._id).populate('employees.employeeId');
   return sendSuccess(res, 'Attendance CSV uploaded and processed successfully', {
-    run,
+    run: populatedRun,
     summary: {
       updated,
       notFound: [...new Set(notFound)],

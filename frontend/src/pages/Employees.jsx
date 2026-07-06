@@ -392,6 +392,7 @@ export default function Employees() {
                       <th className="px-6 py-4">Email</th>
                       <th className="px-6 py-4">Salary Grade</th>
                       <th className="px-6 py-4">Monthly Salary</th>
+                      <th className="px-6 py-4">Compliance & Reliefs</th>
                       <th className="px-6 py-4">Bank Details</th>
                       {isStaffManager && <th className="px-6 py-4 text-right">Actions</th>}
                     </tr>
@@ -443,6 +444,33 @@ export default function Employees() {
                           <td className="px-6 py-4">
                             <span className="font-semibold text-slate-800">₦{Number(emp.basicSalary).toLocaleString()}</span>
                             <span className="block text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Gross: ₦{Number(emp.basicSalary + emp.housingAllowance + emp.transportAllowance + emp.otherAllowances).toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 text-xs">
+                            <div className="space-y-1">
+                              <div className="flex items-center flex-wrap gap-1">
+                                <span className="inline-block px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[9px] font-bold uppercase tracking-wider border border-blue-150">
+                                  {emp.stateOfWork || 'Lagos'}
+                                </span>
+                                {emp.nhfOptIn && (
+                                  <span className="inline-block px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[9px] font-bold uppercase tracking-wider border border-emerald-150">
+                                    NHF
+                                  </span>
+                                )}
+                                {emp.nhisOptIn && (
+                                  <span className="inline-block px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-bold uppercase tracking-wider border border-indigo-150">
+                                    NHIS
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-450 leading-tight">
+                                {emp.annualRentPaid > 0 && (
+                                  <p>Rent: ₦{Number(emp.annualRentPaid).toLocaleString()}/yr</p>
+                                )}
+                                {emp.annualLifeInsurance > 0 && (
+                                  <p>Life Ins: ₦{Number(emp.annualLifeInsurance).toLocaleString()}/yr</p>
+                                )}
+                              </div>
+                            </div>
                           </td>
                           <td className="px-6 py-4 text-slate-500 text-xs">
                             {emp.bankName ? (
