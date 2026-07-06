@@ -66,6 +66,36 @@ const EmployeeSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+    // Compliance & Tax details
+    stateOfWork: {
+      type: String,
+      default: 'Lagos',
+      trim: true
+    },
+    nhfOptIn: {
+      type: Boolean,
+      default: false
+    },
+    nhisOptIn: {
+      type: Boolean,
+      default: false
+    },
+    pfaName: {
+      type: String,
+      trim: true
+    },
+    pensionPin: {
+      type: String,
+      trim: true
+    },
+    annualRentPaid: {
+      type: Number,
+      default: 0
+    },
+    annualLifeInsurance: {
+      type: Number,
+      default: 0
+    },
     // Bank details
     bankName: {
       type: String,

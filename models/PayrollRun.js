@@ -31,6 +31,12 @@ const PayrollEmployeeSchema = new mongoose.Schema({
   taxDeduction: { type: Number, required: true },
   pensionDeduction: { type: Number, required: true },
   nhfDeduction: { type: Number, required: true },
+  nhisDeduction: { type: Number, default: 0 },
+  // Employer Overhead (Monthly)
+  employerPensionContribution: { type: Number, default: 0 },
+  employerNhisContribution: { type: Number, default: 0 },
+  nsitfContribution: { type: Number, default: 0 },
+  itfContribution: { type: Number, default: 0 },
   // Net Salary (Monthly)
   netSalary: { type: Number, required: true }
 });
@@ -67,6 +73,11 @@ const PayrollRunSchema = new mongoose.Schema(
       tax: { type: Number, default: 0 },
       pension: { type: Number, default: 0 },
       nhf: { type: Number, default: 0 },
+      nhis: { type: Number, default: 0 },
+      employerPension: { type: Number, default: 0 },
+      employerNhis: { type: Number, default: 0 },
+      nsitf: { type: Number, default: 0 },
+      itf: { type: Number, default: 0 },
       net: { type: Number, default: 0 }
     },
     employees: [PayrollEmployeeSchema]

@@ -87,7 +87,17 @@ exports.computePayroll = catchAsync(async (req, res) => {
     }
 
     const payroll = calculateMonthlyPayroll(
-      { basicSalary, housingAllowance, transportAllowance, otherAllowances },
+      {
+        basicSalary,
+        housingAllowance,
+        transportAllowance,
+        otherAllowances,
+        nhfOptIn: emp.nhfOptIn,
+        nhisOptIn: emp.nhisOptIn,
+        annualRentPaid: emp.annualRentPaid || 0,
+        annualLifeInsurance: emp.annualLifeInsurance || 0,
+        companyEmployeeCount: activeEmployeeCount
+      },
       { workingDaysInMonth, daysAbsent: att.daysAbsent || 0, halfDays: att.halfDays || 0 }
     );
 
@@ -108,6 +118,11 @@ exports.computePayroll = catchAsync(async (req, res) => {
       taxDeduction: payroll.monthlyTax,
       pensionDeduction: payroll.monthlyPension,
       nhfDeduction: payroll.monthlyNhf,
+      nhisDeduction: payroll.monthlyNhis,
+      employerPensionContribution: payroll.employerPensionContribution,
+      employerNhisContribution: payroll.employerNhisContribution,
+      nsitfContribution: payroll.nsitfContribution,
+      itfContribution: payroll.itfContribution,
       netSalary: payroll.monthlyNet
     });
 
@@ -116,6 +131,11 @@ exports.computePayroll = catchAsync(async (req, res) => {
     totals.tax += payroll.monthlyTax;
     totals.pension += payroll.monthlyPension;
     totals.nhf += payroll.monthlyNhf;
+    totals.nhis = (totals.nhis || 0) + payroll.monthlyNhis;
+    totals.employerPension = (totals.employerPension || 0) + payroll.employerPensionContribution;
+    totals.employerNhis = (totals.employerNhis || 0) + payroll.employerNhisContribution;
+    totals.nsitf = (totals.nsitf || 0) + payroll.nsitfContribution;
+    totals.itf = (totals.itf || 0) + payroll.itfContribution;
     totals.net += payroll.monthlyNet;
   }
 
@@ -124,6 +144,11 @@ exports.computePayroll = catchAsync(async (req, res) => {
   totals.tax = round(totals.tax);
   totals.pension = round(totals.pension);
   totals.nhf = round(totals.nhf);
+  totals.nhis = round(totals.nhis || 0);
+  totals.employerPension = round(totals.employerPension || 0);
+  totals.employerNhis = round(totals.employerNhis || 0);
+  totals.nsitf = round(totals.nsitf || 0);
+  totals.itf = round(totals.itf || 0);
   totals.net = round(totals.net);
 
   let run;
@@ -207,7 +232,12 @@ exports.updateAttendance = catchAsync(async (req, res) => {
     companyId: req.companyId
   }).populate('gradeId');
 
-  const totals = { gross: 0, tax: 0, pension: 0, nhf: 0, net: 0 };
+  const activeEmployeeCount = await Employee.countDocuments({
+    companyId: req.companyId,
+    status: 'active'
+  });
+
+  const totals = { gross: 0, tax: 0, pension: 0, nhf: 0, nhis: 0, employerPension: 0, employerNhis: 0, nsitf: 0, itf: 0, net: 0 };
 
   for (const empRecord of run.employees) {
     // Find matching employee details
@@ -238,7 +268,17 @@ exports.updateAttendance = catchAsync(async (req, res) => {
     }
 
     const payroll = calculateMonthlyPayroll(
-      { basicSalary, housingAllowance, transportAllowance, otherAllowances },
+      {
+        basicSalary,
+        housingAllowance,
+        transportAllowance,
+        otherAllowances,
+        nhfOptIn: emp ? emp.nhfOptIn : false,
+        nhisOptIn: emp ? emp.nhisOptIn : false,
+        annualRentPaid: emp ? (emp.annualRentPaid || 0) : 0,
+        annualLifeInsurance: emp ? (emp.annualLifeInsurance || 0) : 0,
+        companyEmployeeCount: activeEmployeeCount
+      },
       { workingDaysInMonth, daysAbsent, halfDays }
     );
 
@@ -256,6 +296,11 @@ exports.updateAttendance = catchAsync(async (req, res) => {
     empRecord.taxDeduction = payroll.monthlyTax;
     empRecord.pensionDeduction = payroll.monthlyPension;
     empRecord.nhfDeduction = payroll.monthlyNhf;
+    empRecord.nhisDeduction = payroll.monthlyNhis;
+    empRecord.employerPensionContribution = payroll.employerPensionContribution;
+    empRecord.employerNhisContribution = payroll.employerNhisContribution;
+    empRecord.nsitfContribution = payroll.nsitfContribution;
+    empRecord.itfContribution = payroll.itfContribution;
     empRecord.netSalary = payroll.monthlyNet;
 
     // Accumulate run totals
@@ -263,6 +308,11 @@ exports.updateAttendance = catchAsync(async (req, res) => {
     totals.tax += payroll.monthlyTax;
     totals.pension += payroll.monthlyPension;
     totals.nhf += payroll.monthlyNhf;
+    totals.nhis = (totals.nhis || 0) + payroll.monthlyNhis;
+    totals.employerPension = (totals.employerPension || 0) + payroll.employerPensionContribution;
+    totals.employerNhis = (totals.employerNhis || 0) + payroll.employerNhisContribution;
+    totals.nsitf = (totals.nsitf || 0) + payroll.nsitfContribution;
+    totals.itf = (totals.itf || 0) + payroll.itfContribution;
     totals.net += payroll.monthlyNet;
   }
 
@@ -272,6 +322,11 @@ exports.updateAttendance = catchAsync(async (req, res) => {
     tax: round(totals.tax),
     pension: round(totals.pension),
     nhf: round(totals.nhf),
+    nhis: round(totals.nhis || 0),
+    employerPension: round(totals.employerPension || 0),
+    employerNhis: round(totals.employerNhis || 0),
+    nsitf: round(totals.nsitf || 0),
+    itf: round(totals.itf || 0),
     net: round(totals.net)
   };
 
@@ -381,8 +436,13 @@ exports.uploadAttendanceCsv = catchAsync(async (req, res) => {
     attendanceMap.set(staffId, { daysAbsent, halfDays });
   }
 
+  const activeEmployeeCount = await Employee.countDocuments({
+    companyId: req.companyId,
+    status: 'active'
+  });
+
   const workingDaysInMonth = getWorkingDays(run.month, run.year);
-  const totals = { gross: 0, tax: 0, pension: 0, nhf: 0, net: 0 };
+  const totals = { gross: 0, tax: 0, pension: 0, nhf: 0, nhis: 0, employerPension: 0, employerNhis: 0, nsitf: 0, itf: 0, net: 0 };
 
   for (const empRecord of run.employees) {
     const emp = companyEmployees.find(e => e._id.toString() === empRecord.employeeId.toString());
@@ -418,7 +478,17 @@ exports.uploadAttendanceCsv = catchAsync(async (req, res) => {
     }
 
     const payroll = calculateMonthlyPayroll(
-      { basicSalary, housingAllowance, transportAllowance, otherAllowances },
+      {
+        basicSalary,
+        housingAllowance,
+        transportAllowance,
+        otherAllowances,
+        nhfOptIn: emp ? emp.nhfOptIn : false,
+        nhisOptIn: emp ? emp.nhisOptIn : false,
+        annualRentPaid: emp ? (emp.annualRentPaid || 0) : 0,
+        annualLifeInsurance: emp ? (emp.annualLifeInsurance || 0) : 0,
+        companyEmployeeCount: activeEmployeeCount
+      },
       { workingDaysInMonth, daysAbsent, halfDays }
     );
 
@@ -436,6 +506,11 @@ exports.uploadAttendanceCsv = catchAsync(async (req, res) => {
     empRecord.taxDeduction = payroll.monthlyTax;
     empRecord.pensionDeduction = payroll.monthlyPension;
     empRecord.nhfDeduction = payroll.monthlyNhf;
+    empRecord.nhisDeduction = payroll.monthlyNhis;
+    empRecord.employerPensionContribution = payroll.employerPensionContribution;
+    empRecord.employerNhisContribution = payroll.employerNhisContribution;
+    empRecord.nsitfContribution = payroll.nsitfContribution;
+    empRecord.itfContribution = payroll.itfContribution;
     empRecord.netSalary = payroll.monthlyNet;
 
     // Accumulate run totals
@@ -443,6 +518,11 @@ exports.uploadAttendanceCsv = catchAsync(async (req, res) => {
     totals.tax += payroll.monthlyTax;
     totals.pension += payroll.monthlyPension;
     totals.nhf += payroll.monthlyNhf;
+    totals.nhis = (totals.nhis || 0) + payroll.monthlyNhis;
+    totals.employerPension = (totals.employerPension || 0) + payroll.employerPensionContribution;
+    totals.employerNhis = (totals.employerNhis || 0) + payroll.employerNhisContribution;
+    totals.nsitf = (totals.nsitf || 0) + payroll.nsitfContribution;
+    totals.itf = (totals.itf || 0) + payroll.itfContribution;
     totals.net += payroll.monthlyNet;
   }
 
@@ -458,6 +538,11 @@ exports.uploadAttendanceCsv = catchAsync(async (req, res) => {
     tax: round(totals.tax),
     pension: round(totals.pension),
     nhf: round(totals.nhf),
+    nhis: round(totals.nhis || 0),
+    employerPension: round(totals.employerPension || 0),
+    employerNhis: round(totals.employerNhis || 0),
+    nsitf: round(totals.nsitf || 0),
+    itf: round(totals.itf || 0),
     net: round(totals.net)
   };
 

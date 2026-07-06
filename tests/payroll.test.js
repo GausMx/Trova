@@ -62,7 +62,8 @@ describe('Payroll Execution API Integration Tests', () => {
       basicSalary: 100000,
       housingAllowance: 50000,
       transportAllowance: 30000,
-      otherAllowances: 20000
+      otherAllowances: 20000,
+      nhfOptIn: true
     });
     employeeId = emp._id;
 
@@ -99,14 +100,14 @@ describe('Payroll Execution API Integration Tests', () => {
       // Verify calculations totals:
       // Gross: 200,000
       // Pension: 8% of B+H+T (180,000) = 14,400
-      // NHF: 2.5% of Basic (100,000) = 2,500
-      // Tax (PAYE): 17,355.67 (verified in unit tests)
-      // Net: 200,000 - 14,400 - 2,500 - 17,355.67 = 165,744.33
+      // NHF: 2.5% of Basic (100,000) = 2,500 (Opted In)
+      // Tax (PAYE - 2026 progressive bands): 17,465
+      // Net: 200,000 - 14,400 - 2,500 - 17,465 = 165,635
       expect(res.body.data.run.totals.gross).toBe(200000);
       expect(res.body.data.run.totals.pension).toBe(14400);
       expect(res.body.data.run.totals.nhf).toBe(2500);
-      expect(res.body.data.run.totals.tax).toBe(17355.67);
-      expect(res.body.data.run.totals.net).toBe(165744.33);
+      expect(res.body.data.run.totals.tax).toBe(17465);
+      expect(res.body.data.run.totals.net).toBe(165635);
 
       expect(res.body.data.run.employees.length).toBe(1);
       expect(res.body.data.run.employees[0].name).toBe('Aliko Dangote');

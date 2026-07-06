@@ -10,8 +10,9 @@ import Payroll from './pages/Payroll';
 import Compliance from './pages/Compliance';
 import Billing from './pages/Billing';
 import BillingCallback from './pages/BillingCallback';
+import ComplianceGuide from './pages/ComplianceGuide';
 import api from './utils/api';
-import { LayoutDashboard, Users, CreditCard, ShieldCheck, LogOut, Briefcase, Receipt, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, ShieldCheck, LogOut, Briefcase, Receipt, Menu, X, BookOpen } from 'lucide-react';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -159,6 +160,7 @@ const MainLayout = ({ children }) => {
     { name: 'Employees', path: '/employees', icon: Users },
     { name: 'Payroll', path: '/payroll', icon: CreditCard },
     { name: 'Compliance', path: '/compliance', icon: ShieldCheck },
+    { name: 'Compliance Guide', path: '/compliance-guide', icon: BookOpen },
   ];
 
   if (['owner', 'admin'].includes(user?.role)) {
@@ -363,6 +365,16 @@ export default function App() {
               <ProtectedRoute>
                 <MainLayout>
                   <Compliance />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/compliance-guide"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <ComplianceGuide />
                 </MainLayout>
               </ProtectedRoute>
             }

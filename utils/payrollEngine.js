@@ -1,4 +1,4 @@
-const { TAX_BANDS, PENSION, NHF, CRA, MINIMUM_TAX_RATE } = require('../config/constants');
+const { TAX_BANDS, PENSION, NHF } = require('../config/constants');
 
 /**
  * Helper to round values to 2 decimal places to prevent floating-point issues.
@@ -10,13 +10,18 @@ const round = (num) => {
 };
 
 /**
- * Calculates monthly payroll deductions and net salary based on PITA 2011 regulations.
+ * Calculates monthly payroll deductions and net salary based on 2026 progressive regulations.
  * 
- * @param {Object} employee - Employee salary details
+ * @param {Object} employee - Employee salary and compliance preferences
  * @param {number} employee.basicSalary - Monthly basic salary (NGN)
  * @param {number} employee.housingAllowance - Monthly housing allowance (NGN)
  * @param {number} employee.transportAllowance - Monthly transport allowance (NGN)
  * @param {number} employee.otherAllowances - Monthly other allowances (NGN)
+ * @param {boolean} employee.nhfOptIn - Whether opted into voluntary NHF
+ * @param {boolean} employee.nhisOptIn - Whether opted into voluntary NHIS
+ * @param {number} employee.annualRentPaid - Annual rent paid for Rent Relief
+ * @param {number} employee.annualLifeInsurance - Annual Life Insurance premium paid
+ * @param {number} employee.companyEmployeeCount - Total active employee count for the company
  * 
  * @returns {Object} Calculated payroll breakdown
  */
@@ -25,7 +30,12 @@ const calculateMonthlyPayroll = (employee, attendance = null) => {
     basicSalary = 0,
     housingAllowance = 0,
     transportAllowance = 0,
-    otherAllowances = 0
+    otherAllowances = 0,
+    nhfOptIn = false,
+    nhisOptIn = false,
+    annualRentPaid = 0,
+    annualLifeInsurance = 0,
+    companyEmployeeCount = 0
   } = employee;
 
   const standardGross = basicSalary + housingAllowance + transportAllowance + otherAllowances;
@@ -72,11 +82,16 @@ const calculateMonthlyPayroll = (employee, attendance = null) => {
       annualPension: 0,
       monthlyNhf: 0,
       annualNhf: 0,
-      annualCra: 0,
+      monthlyNhis: 0,
+      annualNhis: 0,
       annualTaxableIncome: 0,
       annualTax: 0,
       monthlyTax: 0,
       monthlyNet: 0,
+      employerPensionContribution: 0,
+      employerNhisContribution: 0,
+      nsitfContribution: 0,
+      itfContribution: 0,
       workingDays,
       daysAbsent,
       halfDays,
@@ -90,21 +105,27 @@ const calculateMonthlyPayroll = (employee, attendance = null) => {
   const monthlyPension = monthlyPensionBase * PENSION.EMPLOYEE_RATE;
   const annualPension = monthlyPension * 12;
 
-  // 3. Calculate NHF (2.5% of Basic)
-  const monthlyNhf = basic * NHF.EMPLOYEE_RATE;
+  // 3. Calculate NHF (2.5% of Basic) - 2026: voluntary for private-sector
+  const monthlyNhf = nhfOptIn ? (basic * NHF.EMPLOYEE_RATE) : 0;
   const annualNhf = monthlyNhf * 12;
 
-  // 4. Calculate Consolidated Relief Allowance (CRA)
-  // Formula: Higher of N200,000 or 1% of Gross, plus 20% of Gross
-  const flatCRA = Math.max(CRA.BASE_FLAT, annualGross * CRA.PERCENT_OF_GROSS);
-  const additionalCRA = annualGross * CRA.ADDITIONAL_PERCENT_OF_GROSS;
-  const annualCra = flatCRA + additionalCRA;
+  // 4. Calculate NHIS (5% of Basic) - 2026: 10+ employees
+  const nhisApplies = nhisOptIn && companyEmployeeCount >= 10;
+  const monthlyNhis = nhisApplies ? (basic * 0.05) : 0;
+  const annualNhis = monthlyNhis * 12;
 
-  // 5. Calculate Taxable Income (Chargeable Income)
-  // Taxable Income = Annual Gross - (Pension + NHF + CRA)
-  const annualTaxableIncome = Math.max(0, annualGross - (annualPension + annualNhf + annualCra));
+  // 5. Calculate Rent Relief (20% of annual rent paid, strictly capped at a maximum of N500,000)
+  const annualRentRelief = Math.min(annualRentPaid * 0.20, 500000);
 
-  // 6. Calculate Progressive Tax (PAYE) based on Bands
+  // 6. Life Insurance pre-tax deduction
+  const annualLifeInsuranceDeduction = annualLifeInsurance;
+
+  // 7. Calculate Taxable Income (Chargeable Income)
+  // Taxable Income = Annual Gross - (Pension + NHF + NHIS + Rent Relief + Life Insurance)
+  const totalAllowableDeductions = annualPension + annualNhf + annualNhis + annualRentRelief + annualLifeInsuranceDeduction;
+  const annualTaxableIncome = Math.max(0, annualGross - totalAllowableDeductions);
+
+  // 8. Calculate Progressive Tax (PAYE) based on 2026 Bands
   let annualTax = 0;
   let remainingTaxable = annualTaxableIncome;
 
@@ -115,16 +136,15 @@ const calculateMonthlyPayroll = (employee, attendance = null) => {
     remainingTaxable -= taxableInThisBand;
   }
 
-  // 7. Apply Minimum Tax Check
-  // If computed tax is less than 1% of gross income, minimum tax applies
-  const minimumTax = annualGross * MINIMUM_TAX_RATE;
-  if (annualTax < minimumTax) {
-    annualTax = minimumTax;
-  }
-
-  // 8. Convert to Monthly values
+  // 9. Convert to Monthly values
   const monthlyTax = annualTax / 12;
-  const monthlyNet = monthlyGross - (monthlyPension + monthlyNhf + monthlyTax);
+  const monthlyNet = monthlyGross - (monthlyPension + monthlyNhf + monthlyNhis + monthlyTax);
+
+  // 10. Calculate Employer Overhead Levies
+  const employerPensionContribution = monthlyPensionBase * PENSION.EMPLOYER_RATE;
+  const employerNhisContribution = nhisApplies ? (basic * 0.10) : 0;
+  const nsitfContribution = monthlyGross * 0.01;
+  const itfContribution = (companyEmployeeCount >= 5 || annualGross > 50000) ? (monthlyGross * 0.01) : 0;
 
   // Return rounded calculations
   return {
@@ -134,11 +154,16 @@ const calculateMonthlyPayroll = (employee, attendance = null) => {
     annualPension: round(annualPension),
     monthlyNhf: round(monthlyNhf),
     annualNhf: round(annualNhf),
-    annualCra: round(annualCra),
+    monthlyNhis: round(monthlyNhis),
+    annualNhis: round(annualNhis),
     annualTaxableIncome: round(annualTaxableIncome),
     annualTax: round(annualTax),
     monthlyTax: round(monthlyTax),
     monthlyNet: round(monthlyNet),
+    employerPensionContribution: round(employerPensionContribution),
+    employerNhisContribution: round(employerNhisContribution),
+    nsitfContribution: round(nsitfContribution),
+    itfContribution: round(itfContribution),
     workingDays,
     daysAbsent,
     halfDays,
