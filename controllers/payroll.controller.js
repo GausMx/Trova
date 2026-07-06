@@ -648,6 +648,7 @@ exports.getPayrollRunById = catchAsync(async (req, res) => {
     return {
       ...pe,
       employeeId: empId,
+      employeeDetails: emp, // Preserve the fully populated employee object
       bankName: emp ? emp.bankName : '',
       bankCode: emp ? emp.bankCode : '',
       accountNumber: emp ? emp.accountNumber : '',

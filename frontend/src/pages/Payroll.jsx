@@ -38,7 +38,7 @@ export default function Payroll() {
 
   const handleOpenPreview = (record) => {
     setPreviewRecord(record);
-    const emp = record.employeeId || {};
+    const emp = record.employeeDetails || record.employeeId || {};
     setModStateOfWork(emp.stateOfWork || 'Lagos');
     setModNhfOptIn(emp.nhfOptIn !== undefined ? !!emp.nhfOptIn : false);
     setModNhisOptIn(emp.nhisOptIn !== undefined ? !!emp.nhisOptIn : false);
@@ -52,7 +52,7 @@ export default function Payroll() {
   const handleSaveAndRecalculate = async () => {
     setIsRecalculating(true);
     try {
-      const empId = previewRecord.employeeId?._id || previewRecord.employeeId;
+      const empId = previewRecord.employeeDetails?._id || previewRecord.employeeId?._id || previewRecord.employeeId;
       // 1. Update employee compliance details
       await api.put(`/employees/${empId}`, {
         stateOfWork: modStateOfWork,
