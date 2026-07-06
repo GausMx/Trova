@@ -41,7 +41,14 @@ exports.createEmployee = catchAsync(async (req, res) => {
     bankName,
     accountNumber,
     accountName,
-    gradeId
+    gradeId,
+    stateOfWork,
+    nhfOptIn,
+    nhisOptIn,
+    pfaName,
+    pensionPin,
+    annualRentPaid,
+    annualLifeInsurance
   } = req.body;
 
   // 1. If email is provided, prevent duplicates within the same company tenant
@@ -115,7 +122,14 @@ exports.createEmployee = catchAsync(async (req, res) => {
     accountNumber,
     accountName,
     gradeId: gradeId || undefined,
-    salaryOverridden
+    salaryOverridden,
+    stateOfWork: stateOfWork || 'Lagos',
+    nhfOptIn: nhfOptIn === true || nhfOptIn === 'true',
+    nhisOptIn: nhisOptIn === true || nhisOptIn === 'true',
+    pfaName,
+    pensionPin,
+    annualRentPaid: annualRentPaid ? Number(annualRentPaid) : 0,
+    annualLifeInsurance: annualLifeInsurance ? Number(annualLifeInsurance) : 0
   });
 
   const responseData = { employee };
@@ -225,7 +239,14 @@ exports.updateEmployee = catchAsync(async (req, res) => {
     bankName,
     accountNumber,
     accountName,
-    gradeId
+    gradeId,
+    stateOfWork,
+    nhfOptIn,
+    nhisOptIn,
+    pfaName,
+    pensionPin,
+    annualRentPaid,
+    annualLifeInsurance
   } = req.body;
 
   // Verify unique email check if updated
@@ -312,6 +333,13 @@ exports.updateEmployee = catchAsync(async (req, res) => {
 
   if (accountNumber !== undefined) employee.accountNumber = accountNumber;
   if (accountName !== undefined) employee.accountName = accountName;
+  if (stateOfWork !== undefined) employee.stateOfWork = stateOfWork;
+  if (nhfOptIn !== undefined) employee.nhfOptIn = nhfOptIn === true || nhfOptIn === 'true';
+  if (nhisOptIn !== undefined) employee.nhisOptIn = nhisOptIn === true || nhisOptIn === 'true';
+  if (pfaName !== undefined) employee.pfaName = pfaName;
+  if (pensionPin !== undefined) employee.pensionPin = pensionPin;
+  if (annualRentPaid !== undefined) employee.annualRentPaid = annualRentPaid ? Number(annualRentPaid) : 0;
+  if (annualLifeInsurance !== undefined) employee.annualLifeInsurance = annualLifeInsurance ? Number(annualLifeInsurance) : 0;
 
   const updatedEmployee = await employee.save();
 

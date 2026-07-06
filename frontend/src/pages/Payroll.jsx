@@ -23,6 +23,135 @@ export default function Payroll() {
   const [attendanceEdits, setAttendanceEdits] = useState({});
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
 
+  // Compliance preview modal states
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewRecord, setPreviewRecord] = useState(null);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  
+  const [modStateOfWork, setModStateOfWork] = useState('Lagos');
+  const [modNhfOptIn, setModNhfOptIn] = useState(false);
+  const [modNhisOptIn, setModNhisOptIn] = useState(false);
+  const [modPfaName, setModPfaName] = useState('');
+  const [modPensionPin, setModPensionPin] = useState('');
+  const [modAnnualRent, setModAnnualRent] = useState(0);
+  const [modLifeIns, setModLifeIns] = useState(0);
+
+  const handleOpenPreview = (record) => {
+    setPreviewRecord(record);
+    const emp = record.employeeId || {};
+    setModStateOfWork(emp.stateOfWork || 'Lagos');
+    setModNhfOptIn(emp.nhfOptIn !== undefined ? !!emp.nhfOptIn : false);
+    setModNhisOptIn(emp.nhisOptIn !== undefined ? !!emp.nhisOptIn : false);
+    setModPfaName(emp.pfaName || '');
+    setModPensionPin(emp.pensionPin || '');
+    setModAnnualRent(emp.annualRentPaid || 0);
+    setModLifeIns(emp.annualLifeInsurance || 0);
+    setIsPreviewOpen(true);
+  };
+
+  const handleSaveAndRecalculate = async () => {
+    setIsRecalculating(true);
+    try {
+      const empId = previewRecord.employeeId?._id || previewRecord.employeeId;
+      // 1. Update employee compliance details
+      await api.put(`/employees/${empId}`, {
+        stateOfWork: modStateOfWork,
+        nhfOptIn: modNhfOptIn,
+        nhisOptIn: modNhisOptIn,
+        pfaName: modPfaName,
+        pensionPin: modPensionPin,
+        annualRentPaid: Number(modAnnualRent),
+        annualLifeInsurance: Number(modLifeIns)
+      });
+
+      // 2. Trigger payroll compute to recalculate draft
+      await api.post('/payroll/compute', {
+        month: selectedRunDetails.month,
+        year: selectedRunDetails.year
+      });
+
+      // 3. Refresh data
+      queryClient.invalidateQueries({ queryKey: ['payrollRunDetails', selectedRunId] });
+      queryClient.invalidateQueries({ queryKey: ['payrollRuns'] });
+      
+      setSuccessMsg('Employee compliance updated and payroll recalculated successfully.');
+      setTimeout(() => setSuccessMsg(''), 4000);
+      setIsPreviewOpen(false);
+    } catch (err) {
+      alert(`Recalculation failed: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
+
+  const getLivePreview = () => {
+    if (!previewRecord) return null;
+    const basic = previewRecord.basicSalary || 0;
+    const housing = previewRecord.housingAllowance || 0;
+    const transport = previewRecord.transportAllowance || 0;
+    const other = previewRecord.otherAllowances || 0;
+    const gross = basic + housing + transport + other;
+    const annualGross = gross * 12;
+
+    const empPension = (basic + housing + transport) * 0.08;
+    const empNhf = modNhfOptIn ? (basic * 0.025) : 0;
+    
+    // Check if company has >= 10 employees
+    const empCount = selectedRunDetails.employees?.length || 0;
+    const empNhis = (modNhisOptIn && empCount >= 10) ? (basic * 0.05) : 0;
+    
+    const rentRelief = Math.min(modAnnualRent * 0.20, 500000);
+    const lifeIns = Number(modLifeIns) || 0;
+
+    const totalReliefs = (empPension * 12) + (empNhf * 12) + (empNhis * 12) + rentRelief + lifeIns;
+    const taxable = Math.max(0, annualGross - totalReliefs);
+
+    // 2026 progressive bands
+    const taxBands = [
+      { limit: 800000, rate: 0.00 },
+      { limit: 2200000, rate: 0.15 },
+      { limit: 9000000, rate: 0.18 },
+      { limit: 13000000, rate: 0.21 },
+      { limit: 25000000, rate: 0.23 },
+      { limit: Infinity, rate: 0.25 }
+    ];
+
+    let remaining = taxable;
+    let annualTax = 0;
+    for (const band of taxBands) {
+      if (remaining <= 0) break;
+      const amountInBand = Math.min(remaining, band.limit);
+      annualTax += amountInBand * band.rate;
+      remaining -= amountInBand;
+    }
+
+    const monthlyTax = annualTax / 12;
+    const net = gross - (empPension + empNhf + empNhis + monthlyTax);
+
+    // Employer Overhead
+    const employerPension = (basic + housing + transport) * 0.10;
+    const employerNhis = (modNhisOptIn && empCount >= 10) ? (basic * 0.10) : 0;
+    const nsitf = gross * 0.01;
+    const itf = (empCount >= 5 || annualGross > 50000) ? (gross * 0.01) : 0;
+
+    return {
+      gross,
+      empPension,
+      empNhf,
+      empNhis,
+      rentRelief: rentRelief / 12,
+      lifeIns: lifeIns / 12,
+      totalReliefs: totalReliefs / 12,
+      taxable: taxable / 12,
+      tax: monthlyTax,
+      net,
+      employerPension,
+      employerNhis,
+      nsitf,
+      itf
+    };
+  };
+
   const canCompute = ['owner', 'admin', 'finance'].includes(user?.role);
   const canApprove = ['owner', 'admin', 'finance'].includes(user?.role);
   const canPay = ['owner', 'finance'].includes(user?.role);
@@ -544,8 +673,9 @@ export default function Payroll() {
                             <th className="px-4 py-3 text-rose-600">PAYE Tax</th>
                             <th className="px-4 py-3 text-rose-600">Pension</th>
                             <th className="px-4 py-3 text-rose-600">NHF</th>
+                            <th className="px-4 py-3 text-rose-600">NHIS</th>
                             <th className="px-4 py-3 text-forest-700">Net Pay</th>
-                            <th className="px-4 py-3 text-right">Payslip</th>
+                            <th className="px-4 py-3 text-right">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -566,11 +696,18 @@ export default function Payroll() {
                               <td className="px-4 py-3 text-rose-700">₦{Number(record.taxDeduction || 0).toLocaleString()}</td>
                               <td className="px-4 py-3 text-rose-700">₦{Number(record.pensionDeduction || 0).toLocaleString()}</td>
                               <td className="px-4 py-3 text-rose-700">₦{Number(record.nhfDeduction || 0).toLocaleString()}</td>
+                              <td className="px-4 py-3 text-rose-700">₦{Number(record.nhisDeduction || 0).toLocaleString()}</td>
                               <td className="px-4 py-3 font-semibold text-forest-700">₦{Number(record.netSalary).toLocaleString()}</td>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-4 py-3 text-right flex items-center justify-end space-x-2">
+                                <button
+                                  onClick={() => handleOpenPreview(record)}
+                                  className="inline-flex items-center space-x-1 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium transition-colors border border-slate-200"
+                                >
+                                  <span>{selectedRunDetails.status === 'draft' ? 'Review & Adjust' : 'View Details'}</span>
+                                </button>
                                 {hasFeature('pdf_payslips') ? (
                                   <button
-                                    onClick={() => handleDownloadPayslip(selectedRunDetails._id, record.employeeId, record.name)}
+                                    onClick={() => handleDownloadPayslip(selectedRunDetails._id, record.employeeId?._id || record.employeeId, record.name)}
                                     className="inline-flex items-center space-x-1 px-2.5 py-1 bg-forest-50 text-forest-700 rounded hover:bg-forest-100 font-medium transition-colors"
                                   >
                                     <Download className="w-3.5 h-3.5" />
@@ -721,6 +858,238 @@ export default function Payroll() {
           )}
         </div>
       )}
+      {/* Compliance Review Modal */}
+      {isPreviewOpen && previewRecord && (() => {
+        const live = getLivePreview();
+        const isDraft = selectedRunDetails.status === 'draft';
+        
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-100 flex flex-col md:flex-row overflow-hidden max-h-[90vh]">
+              
+              {/* Left Column: Form Settings */}
+              <div className="flex-1 p-6 md:p-8 space-y-6 overflow-y-auto max-h-[45vh] md:max-h-[90vh] border-b md:border-b-0 md:border-r border-slate-100">
+                <div>
+                  <span className="px-2 py-0.5 bg-forest-50 text-forest-750 border border-forest-100 text-[10px] font-bold uppercase rounded-md tracking-wider">
+                    {isDraft ? 'Draft Stage' : 'Finalized'}
+                  </span>
+                  <h3 className="text-xl font-extrabold text-slate-800 mt-2">Compliance Review</h3>
+                  <p className="text-slate-500 text-xs mt-0.5 font-medium">Adjust employee-specific reliefs & voluntary deductions</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-550 mb-1">State of Work (SIRS Jurisdiction)</label>
+                    <select
+                      disabled={!isDraft || isRecalculating}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-forest-100"
+                      value={modStateOfWork}
+                      onChange={(e) => setModStateOfWork(e.target.value)}
+                    >
+                      <option value="Lagos">Lagos (LIRS)</option>
+                      <option value="FCT">Abuja (FCT-IRS)</option>
+                      <option value="Rivers">Rivers (RIRS)</option>
+                      <option value="Oyo">Oyo (OYIRS)</option>
+                      <option value="Kano">Kano (KIRS)</option>
+                      <option value="Kaduna">Kaduna (KADIRS)</option>
+                      <option value="Ogun">Ogun (OGIRS)</option>
+                      <option value="Delta">Delta (DIRS)</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-550 mb-1">Pension PFA</label>
+                      <input
+                        type="text"
+                        disabled={!isDraft || isRecalculating}
+                        placeholder="PFA Name"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-forest-100"
+                        value={modPfaName}
+                        onChange={(e) => setModPfaName(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-550 mb-1">Pension PIN</label>
+                      <input
+                        type="text"
+                        disabled={!isDraft || isRecalculating}
+                        placeholder="Pension PIN"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-forest-100"
+                        value={modPensionPin}
+                        onChange={(e) => setModPensionPin(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-550 mb-1">Annual Rent Paid (₦)</label>
+                      <input
+                        type="number"
+                        disabled={!isDraft || isRecalculating}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-forest-100"
+                        value={modAnnualRent}
+                        onChange={(e) => setModAnnualRent(Number(e.target.value))}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-550 mb-1">Annual Life Insurance (₦)</label>
+                      <input
+                        type="number"
+                        disabled={!isDraft || isRecalculating}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-forest-100"
+                        value={modLifeIns}
+                        onChange={(e) => setModLifeIns(Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 space-y-2">
+                    <div className="flex items-center space-x-2.5">
+                      <input
+                        type="checkbox"
+                        id="modalNhf"
+                        disabled={!isDraft || isRecalculating}
+                        className="rounded text-forest-900 focus:ring-forest-800 h-4.5 w-4.5"
+                        checked={modNhfOptIn}
+                        onChange={(e) => setModNhfOptIn(e.target.checked)}
+                      />
+                      <label htmlFor="modalNhf" className="text-xs font-semibold text-slate-700">
+                        Opt-in to Voluntary NHF (2.5% basic)
+                      </label>
+                    </div>
+
+                    <div className="flex items-center space-x-2.5">
+                      <input
+                        type="checkbox"
+                        id="modalNhis"
+                        disabled={!isDraft || isRecalculating}
+                        className="rounded text-forest-900 focus:ring-forest-800 h-4.5 w-4.5"
+                        checked={modNhisOptIn}
+                        onChange={(e) => setModNhisOptIn(e.target.checked)}
+                      />
+                      <label htmlFor="modalNhis" className="text-xs font-semibold text-slate-700">
+                        Opt-in to NHIS (5% basic)
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-3 pt-4 border-t border-slate-100">
+                  <button
+                    onClick={() => setIsPreviewOpen(false)}
+                    className="flex-1 py-2 bg-slate-100 hover:bg-slate-250 text-slate-700 rounded-xl text-xs font-bold transition-all border border-slate-200"
+                  >
+                    Close
+                  </button>
+                  {isDraft && (
+                    <button
+                      onClick={handleSaveAndRecalculate}
+                      disabled={isRecalculating}
+                      className="flex-1 py-2 bg-forest-900 hover:bg-forest-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                    >
+                      <span>{isRecalculating ? 'Recalculating...' : 'Save & Re-calculate'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Live Premium Summary */}
+              <div className="flex-1 bg-slate-900 text-white p-6 md:p-8 flex flex-col justify-between overflow-y-auto max-h-[45vh] md:max-h-[90vh]">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-start border-b border-white/5 pb-4">
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Employee Name</p>
+                      <h4 className="font-extrabold text-base text-white mt-0.5">{previewRecord.name}</h4>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gross Base</p>
+                      <p className="font-extrabold text-sm text-emerald-400 mt-0.5">₦{Math.round(live.gross).toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <p className="font-bold text-slate-400 text-[10px] uppercase tracking-wider pb-1">Monthly Deductions & Reliefs</p>
+                    
+                    <div className="flex justify-between border-b border-white/5 pb-2">
+                      <span className="text-slate-400">Pension Contribution (8% B+H+T)</span>
+                      <span className="font-semibold text-rose-400">- ₦{Math.round(live.empPension).toLocaleString()}</span>
+                    </div>
+
+                    <div className="flex justify-between border-b border-white/5 pb-2">
+                      <span className="text-slate-400">NHF Deduction (2.5% basic)</span>
+                      <span className="font-semibold text-rose-450">
+                        {live.empNhf > 0 ? `- ₦${Math.round(live.empNhf).toLocaleString()}` : 'Opted Out'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between border-b border-white/5 pb-2">
+                      <span className="text-slate-400">NHIS Deduction (5% basic)</span>
+                      <span className="font-semibold text-rose-450">
+                        {live.empNhis > 0 ? `- ₦${Math.round(live.empNhis).toLocaleString()}` : 'Opted Out'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between border-b border-white/5 pb-2">
+                      <span className="text-slate-400">Rent Relief (20% rent, max ₦500k/yr)</span>
+                      <span className="font-semibold text-emerald-400">₦{Math.round(live.rentRelief).toLocaleString()}/mo</span>
+                    </div>
+
+                    <div className="flex justify-between border-b border-white/5 pb-2">
+                      <span className="text-slate-400">Life Insurance premium</span>
+                      <span className="font-semibold text-emerald-400">₦{Math.round(live.lifeIns).toLocaleString()}/mo</span>
+                    </div>
+
+                    <div className="flex justify-between border-b border-white/5 pb-2 font-mono text-[11px]">
+                      <span className="text-slate-400">Monthly Taxable Income</span>
+                      <span className="font-semibold text-white">₦{Math.round(live.taxable).toLocaleString()}</span>
+                    </div>
+
+                    <div className="flex justify-between border-b border-white/5 pb-2 font-bold">
+                      <span className="text-slate-400 text-rose-300">PAYE Tax Liability (2026 Bands)</span>
+                      <span className="font-semibold text-rose-400">- ₦{Math.round(live.tax).toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 text-[11px] bg-white/5 p-3 rounded-xl border border-white/5 mt-4">
+                    <p className="font-bold text-[9px] text-slate-400 uppercase tracking-wider mb-1">Employer-Paid Overheads (Out-of-Pocket)</p>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Pension Match (10% emoluments):</span>
+                      <span className="font-semibold text-slate-200">₦{Math.round(live.employerPension).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">NHIS Match (10% basic):</span>
+                      <span className="font-semibold text-slate-200">
+                        {live.employerNhis > 0 ? `₦${Math.round(live.employerNhis).toLocaleString()}` : '₦0'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">NSITF (1% monthly gross):</span>
+                      <span className="font-semibold text-slate-200">₦{Math.round(live.nsitf).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">ITF (1% annual payroll rate):</span>
+                      <span className="font-semibold text-slate-200">₦{Math.round(live.itf).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-white/10 flex justify-between items-center bg-emerald-500/10 p-4 rounded-2xl border border-emerald-500/20">
+                  <div>
+                    <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block">Estimated Net Take-home</span>
+                    <span className="text-[10px] text-slate-455">Gross - (pension + NHF + NHIS + Tax)</span>
+                  </div>
+                  <span className="text-xl font-extrabold text-emerald-350 font-mono">
+                    ₦{Math.round(live.net).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

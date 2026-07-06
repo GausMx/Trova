@@ -166,7 +166,11 @@ export default function Employees() {
       housingAllowance: data.housingAllowance ? Number(data.housingAllowance) : undefined,
       transportAllowance: data.transportAllowance ? Number(data.transportAllowance) : undefined,
       otherAllowances: data.otherAllowances ? Number(data.otherAllowances) : undefined,
-      gradeId: data.gradeId || undefined
+      gradeId: data.gradeId || undefined,
+      nhfOptIn: !!data.nhfOptIn,
+      nhisOptIn: !!data.nhisOptIn,
+      annualRentPaid: data.annualRentPaid ? Number(data.annualRentPaid) : 0,
+      annualLifeInsurance: data.annualLifeInsurance ? Number(data.annualLifeInsurance) : 0
     };
 
     if (editingEmployee) {
@@ -208,6 +212,13 @@ export default function Employees() {
     setEmpValue('accountNumber', emp.accountNumber || '');
     setEmpValue('accountName', emp.accountName || '');
     setEmpValue('gradeId', emp.gradeId?._id || emp.gradeId || '');
+    setEmpValue('stateOfWork', emp.stateOfWork || 'Lagos');
+    setEmpValue('nhfOptIn', !!emp.nhfOptIn);
+    setEmpValue('nhisOptIn', !!emp.nhisOptIn);
+    setEmpValue('pfaName', emp.pfaName || '');
+    setEmpValue('pensionPin', emp.pensionPin || '');
+    setEmpValue('annualRentPaid', emp.annualRentPaid || 0);
+    setEmpValue('annualLifeInsurance', emp.annualLifeInsurance || 0);
     setIsEmpModalOpen(true);
   };
 
@@ -689,6 +700,97 @@ export default function Employees() {
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
                         {...registerEmp('otherAllowances')}
                       />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section: Statutory Compliance & Relief Details */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-forest-700 mb-3 border-b border-slate-100 pb-1">
+                  Statutory Compliance & Reliefs
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">State of Work (for SIRS PAYE)</label>
+                    <select
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
+                      {...registerEmp('stateOfWork')}
+                    >
+                      <option value="Lagos">Lagos (LIRS)</option>
+                      <option value="FCT">Abuja (FCT-IRS)</option>
+                      <option value="Rivers">Rivers (RIRS)</option>
+                      <option value="Oyo">Oyo (OYIRS)</option>
+                      <option value="Kano">Kano (KIRS)</option>
+                      <option value="Kaduna">Kaduna (KADIRS)</option>
+                      <option value="Ogun">Ogun (OGIRS)</option>
+                      <option value="Delta">Delta (DIRS)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Pension PFA Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Stanbic IBTC Pension"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
+                      {...registerEmp('pfaName')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Pension PIN</label>
+                    <input
+                      type="text"
+                      placeholder="PENXXXXXXXXXXXXX"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
+                      {...registerEmp('pensionPin')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Annual Rent Paid (for Rent Relief)</label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
+                      {...registerEmp('annualRentPaid')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Annual Life Insurance Premiums</label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
+                      {...registerEmp('annualLifeInsurance')}
+                    />
+                  </div>
+
+                  <div className="flex flex-col space-y-2 mt-4 justify-center md:col-span-2">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="nhfOptIn"
+                        className="rounded text-forest-900 focus:ring-forest-800 h-4 w-4"
+                        {...registerEmp('nhfOptIn')}
+                      />
+                      <label htmlFor="nhfOptIn" className="text-xs font-semibold text-slate-700">
+                        Opt-in to National Housing Fund (NHF - 2.5% basic salary deduction)
+                      </label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="nhisOptIn"
+                        className="rounded text-forest-900 focus:ring-forest-800 h-4 w-4"
+                        {...registerEmp('nhisOptIn')}
+                      />
+                      <label htmlFor="nhisOptIn" className="text-xs font-semibold text-slate-700">
+                        Opt-in to National Health Insurance Scheme (NHIS - 5% basic salary deduction)
+                      </label>
                     </div>
                   </div>
                 </div>

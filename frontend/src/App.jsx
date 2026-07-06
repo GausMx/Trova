@@ -220,9 +220,7 @@ const MainLayout = ({ children }) => {
           {/* Logo Brand */}
           <div className="p-6 border-b border-forest-800 flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-white text-forest-900 rounded-lg flex items-center justify-center font-bold text-lg">
-                T
-              </div>
+              <img src="/favicon.png" alt="Trova Logo" className="w-8 h-8 rounded-lg shrink-0 object-cover" />
               <span className="text-xl font-bold tracking-wider">TROVA</span>
             </div>
             <button
