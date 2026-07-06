@@ -69,6 +69,14 @@ exports.createEmployee = catchAsync(async (req, res) => {
   let finalOther = otherAllowances || 0;
   let salaryOverridden = false;
 
+  let finalStateOfWork = stateOfWork;
+  let finalNhfOptIn = nhfOptIn;
+  let finalNhisOptIn = nhisOptIn;
+  let finalPfaName = pfaName;
+  let finalPensionPin = pensionPin;
+  let finalAnnualRentPaid = annualRentPaid;
+  let finalAnnualLifeInsurance = annualLifeInsurance;
+
   if (gradeId) {
     const grade = await SalaryGrade.findOne({ _id: gradeId, companyId: req.companyId, isActive: true });
     if (!grade) {
@@ -90,6 +98,15 @@ exports.createEmployee = catchAsync(async (req, res) => {
       finalOther = grade.otherAllowances;
       salaryOverridden = false;
     }
+
+    // Fall back to grade defaults for compliance and reliefs if they are not explicitly provided
+    if (finalStateOfWork === undefined || finalStateOfWork === '') finalStateOfWork = grade.stateOfWork;
+    if (finalNhfOptIn === undefined) finalNhfOptIn = grade.nhfOptIn;
+    if (finalNhisOptIn === undefined) finalNhisOptIn = grade.nhisOptIn;
+    if (finalPfaName === undefined || finalPfaName === '') finalPfaName = grade.pfaName;
+    if (finalPensionPin === undefined || finalPensionPin === '') finalPensionPin = grade.pensionPin;
+    if (finalAnnualRentPaid === undefined) finalAnnualRentPaid = grade.annualRentPaid;
+    if (finalAnnualLifeInsurance === undefined) finalAnnualLifeInsurance = grade.annualLifeInsurance;
   }
 
   // Resolve bank code and warning
@@ -123,13 +140,13 @@ exports.createEmployee = catchAsync(async (req, res) => {
     accountName,
     gradeId: gradeId || undefined,
     salaryOverridden,
-    stateOfWork: stateOfWork || 'Lagos',
-    nhfOptIn: nhfOptIn === true || nhfOptIn === 'true',
-    nhisOptIn: nhisOptIn === true || nhisOptIn === 'true',
-    pfaName,
-    pensionPin,
-    annualRentPaid: annualRentPaid ? Number(annualRentPaid) : 0,
-    annualLifeInsurance: annualLifeInsurance ? Number(annualLifeInsurance) : 0
+    stateOfWork: finalStateOfWork || 'Lagos',
+    nhfOptIn: finalNhfOptIn === true || finalNhfOptIn === 'true',
+    nhisOptIn: finalNhisOptIn === true || finalNhisOptIn === 'true',
+    pfaName: finalPfaName || '',
+    pensionPin: finalPensionPin || '',
+    annualRentPaid: finalAnnualRentPaid ? Number(finalAnnualRentPaid) : 0,
+    annualLifeInsurance: finalAnnualLifeInsurance ? Number(finalAnnualLifeInsurance) : 0
   });
 
   const responseData = { employee };
@@ -289,6 +306,15 @@ exports.updateEmployee = catchAsync(async (req, res) => {
           employee.otherAllowances = grade.otherAllowances;
           employee.salaryOverridden = false;
         }
+
+        // Inherit compliance defaults on grade transition
+        employee.stateOfWork = grade.stateOfWork || 'Lagos';
+        employee.nhfOptIn = !!grade.nhfOptIn;
+        employee.nhisOptIn = !!grade.nhisOptIn;
+        employee.pfaName = grade.pfaName || '';
+        employee.pensionPin = grade.pensionPin || '';
+        employee.annualRentPaid = grade.annualRentPaid || 0;
+        employee.annualLifeInsurance = grade.annualLifeInsurance || 0;
       }
     }
   }

@@ -187,7 +187,11 @@ export default function Employees() {
       basicSalary: Number(data.basicSalary),
       housingAllowance: Number(data.housingAllowance || 0),
       transportAllowance: Number(data.transportAllowance || 0),
-      otherAllowances: Number(data.otherAllowances || 0)
+      otherAllowances: Number(data.otherAllowances || 0),
+      nhfOptIn: !!data.nhfOptIn,
+      nhisOptIn: !!data.nhisOptIn,
+      annualRentPaid: data.annualRentPaid ? Number(data.annualRentPaid) : 0,
+      annualLifeInsurance: data.annualLifeInsurance ? Number(data.annualLifeInsurance) : 0
     };
 
     if (editingGrade) {
@@ -231,6 +235,13 @@ export default function Employees() {
     setGradeValue('transportAllowance', grade.transportAllowance);
     setGradeValue('otherAllowances', grade.otherAllowances);
     setGradeValue('description', grade.description || '');
+    setGradeValue('stateOfWork', grade.stateOfWork || 'Lagos');
+    setGradeValue('nhfOptIn', !!grade.nhfOptIn);
+    setGradeValue('nhisOptIn', !!grade.nhisOptIn);
+    setGradeValue('pfaName', grade.pfaName || '');
+    setGradeValue('pensionPin', grade.pensionPin || '');
+    setGradeValue('annualRentPaid', grade.annualRentPaid || 0);
+    setGradeValue('annualLifeInsurance', grade.annualLifeInsurance || 0);
     setIsGradeModalOpen(true);
   };
 
@@ -264,6 +275,38 @@ export default function Employees() {
       }
     }
   }, [employees]);
+
+  // Dynamically pre-fill compliance defaults from the selected grade
+  React.useEffect(() => {
+    if (selectedGrade) {
+      const currentWorkState = watchEmp('stateOfWork');
+      if (!currentWorkState || currentWorkState === 'Lagos') {
+        setEmpValue('stateOfWork', selectedGrade.stateOfWork || 'Lagos');
+      }
+      setEmpValue('nhfOptIn', !!selectedGrade.nhfOptIn);
+      setEmpValue('nhisOptIn', !!selectedGrade.nhisOptIn);
+      
+      const currentPfa = watchEmp('pfaName');
+      if (!currentPfa) {
+        setEmpValue('pfaName', selectedGrade.pfaName || '');
+      }
+      
+      const currentPensionPin = watchEmp('pensionPin');
+      if (!currentPensionPin) {
+        setEmpValue('pensionPin', selectedGrade.pensionPin || '');
+      }
+      
+      const currentRent = watchEmp('annualRentPaid');
+      if (!currentRent || Number(currentRent) === 0) {
+        setEmpValue('annualRentPaid', selectedGrade.annualRentPaid || 0);
+      }
+      
+      const currentLife = watchEmp('annualLifeInsurance');
+      if (!currentLife || Number(currentLife) === 0) {
+        setEmpValue('annualLifeInsurance', selectedGrade.annualLifeInsurance || 0);
+      }
+    }
+  }, [selectedGradeId, selectedGrade, setEmpValue]);
   const filteredEmployees = employees.filter((emp) =>
     `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.email?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -1004,6 +1047,97 @@ export default function Employees() {
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
                     {...registerGrade('description')}
                   />
+                </div>
+
+                {/* Grade compliance default overrides */}
+                <div className="border-t border-slate-100 pt-4 space-y-4">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-forest-700">
+                    Grade Default Compliance Settings
+                  </h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Default State of Work</label>
+                      <select
+                        className="w-full px-3 py-2 border border-slate-350 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
+                        {...registerGrade('stateOfWork')}
+                      >
+                        <option value="Lagos">Lagos (LIRS)</option>
+                        <option value="FCT">Abuja (FCT-IRS)</option>
+                        <option value="Rivers">Rivers (RIRS)</option>
+                        <option value="Oyo">Oyo (OYIRS)</option>
+                        <option value="Kano">Kano (KIRS)</option>
+                        <option value="Kaduna">Kaduna (KADIRS)</option>
+                        <option value="Ogun">Ogun (OGIRS)</option>
+                        <option value="Delta">Delta (DIRS)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Default Pension PFA Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Stanbic IBTC Pension"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
+                        {...registerGrade('pfaName')}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Default Pension PIN</label>
+                      <input
+                        type="text"
+                        placeholder="PENXXXXXXXXXXXXX"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
+                        {...registerGrade('pensionPin')}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Default Annual Rent (₦)</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
+                        {...registerGrade('annualRentPaid')}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Default Annual Life Insurance (₦)</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
+                        {...registerGrade('annualLifeInsurance')}
+                      />
+                    </div>
+
+                    <div className="flex flex-col space-y-2 mt-4 justify-center md:col-span-2">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="gradeNhf"
+                          className="rounded text-forest-900 focus:ring-forest-800 h-4 w-4"
+                          {...registerGrade('nhfOptIn')}
+                        />
+                        <label htmlFor="gradeNhf" className="text-xs font-semibold text-slate-700">
+                          Opt-in to NHF by default
+                        </label>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="gradeNhis"
+                          className="rounded text-forest-900 focus:ring-forest-800 h-4 w-4"
+                          {...registerGrade('nhisOptIn')}
+                        />
+                        <label htmlFor="gradeNhis" className="text-xs font-semibold text-slate-700">
+                          Opt-in to NHIS by default
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 

@@ -40,6 +40,34 @@ const SalaryGradeSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    stateOfWork: {
+      type: String,
+      default: 'Lagos'
+    },
+    nhfOptIn: {
+      type: Boolean,
+      default: false
+    },
+    nhisOptIn: {
+      type: Boolean,
+      default: false
+    },
+    pfaName: {
+      type: String,
+      default: ''
+    },
+    pensionPin: {
+      type: String,
+      default: ''
+    },
+    annualRentPaid: {
+      type: Number,
+      default: 0
+    },
+    annualLifeInsurance: {
+      type: Number,
+      default: 0
+    },
     isActive: {
       type: Boolean,
       default: true

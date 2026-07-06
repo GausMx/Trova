@@ -25,7 +25,14 @@ exports.createGrade = catchAsync(async (req, res) => {
     housingAllowance,
     transportAllowance,
     otherAllowances,
-    description
+    description,
+    stateOfWork,
+    nhfOptIn,
+    nhisOptIn,
+    pfaName,
+    pensionPin,
+    annualRentPaid,
+    annualLifeInsurance
   } = req.body;
 
   // Check for duplicate names within the same tenant company
@@ -47,7 +54,14 @@ exports.createGrade = catchAsync(async (req, res) => {
     housingAllowance,
     transportAllowance,
     otherAllowances,
-    description
+    description,
+    stateOfWork: stateOfWork || 'Lagos',
+    nhfOptIn: nhfOptIn === true || nhfOptIn === 'true',
+    nhisOptIn: nhisOptIn === true || nhisOptIn === 'true',
+    pfaName: pfaName || '',
+    pensionPin: pensionPin || '',
+    annualRentPaid: annualRentPaid ? Number(annualRentPaid) : 0,
+    annualLifeInsurance: annualLifeInsurance ? Number(annualLifeInsurance) : 0
   });
 
   return sendSuccess(res, 'Salary grade created successfully', { grade }, 201);
@@ -81,7 +95,14 @@ exports.updateGrade = catchAsync(async (req, res) => {
     housingAllowance,
     transportAllowance,
     otherAllowances,
-    description
+    description,
+    stateOfWork,
+    nhfOptIn,
+    nhisOptIn,
+    pfaName,
+    pensionPin,
+    annualRentPaid,
+    annualLifeInsurance
   } = req.body;
 
   const grade = await SalaryGrade.findOne({
@@ -113,6 +134,13 @@ exports.updateGrade = catchAsync(async (req, res) => {
   if (transportAllowance !== undefined) grade.transportAllowance = transportAllowance;
   if (otherAllowances !== undefined) grade.otherAllowances = otherAllowances;
   if (description !== undefined) grade.description = description;
+  if (stateOfWork !== undefined) grade.stateOfWork = stateOfWork;
+  if (nhfOptIn !== undefined) grade.nhfOptIn = nhfOptIn === true || nhfOptIn === 'true';
+  if (nhisOptIn !== undefined) grade.nhisOptIn = nhisOptIn === true || nhisOptIn === 'true';
+  if (pfaName !== undefined) grade.pfaName = pfaName;
+  if (pensionPin !== undefined) grade.pensionPin = pensionPin;
+  if (annualRentPaid !== undefined) grade.annualRentPaid = annualRentPaid ? Number(annualRentPaid) : 0;
+  if (annualLifeInsurance !== undefined) grade.annualLifeInsurance = annualLifeInsurance ? Number(annualLifeInsurance) : 0;
 
   const updatedGrade = await grade.save();
 

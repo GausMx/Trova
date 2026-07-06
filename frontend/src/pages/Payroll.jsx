@@ -483,14 +483,41 @@ export default function Payroll() {
                 {/* Workflow buttons */}
                 <div className="flex items-center space-x-3">
                   {selectedRunDetails.status === 'draft' && canApprove && (
-                    <button
-                      onClick={() => approveMutation.mutate(selectedRunDetails._id)}
-                      disabled={approveMutation.isPending}
-                      className="flex items-center space-x-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      <span>Approve Run</span>
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            setSuccessMsg('Recalculating payroll figures...');
+                            await api.post('/payroll/compute', {
+                              month: selectedRunDetails.month,
+                              year: selectedRunDetails.year
+                            });
+                            queryClient.invalidateQueries({ queryKey: ['payrollRunDetails', selectedRunId] });
+                            queryClient.invalidateQueries({ queryKey: ['payrollRuns'] });
+                            setSuccessMsg('Payroll run recalculated successfully.');
+                            setTimeout(() => setSuccessMsg(''), 4000);
+                          } catch (err) {
+                            setErrorMsg(err.response?.data?.message || 'Failed to recalculate payroll.');
+                            setTimeout(() => setErrorMsg(''), 4000);
+                          }
+                        }}
+                        className="flex items-center space-x-1.5 px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 bg-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+                      >
+                        <Save className="w-4 h-4 text-forest-800" />
+                        <span>Recalculate Run</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => approveMutation.mutate(selectedRunDetails._id)}
+                        disabled={approveMutation.isPending}
+                        className="flex items-center space-x-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Approve Run</span>
+                      </button>
+                    </div>
                   )}
 
                   {selectedRunDetails.status === 'approved' && canPay && (
