@@ -6,6 +6,14 @@ import api from '../utils/api';
 import { Link } from 'react-router-dom';
 import { Users, Search, Plus, X, Trash2, CheckCircle2, UserCheck, RotateCcw, AlertTriangle, Layers, Edit2, Lock } from 'lucide-react';
 
+// Premium loader spinner for button transitions
+const ConcentricSpinner = ({ className = "w-4 h-4" }) => (
+  <svg className={`animate-spin ${className}`} viewBox="0 0 24 24" fill="none">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+  </svg>
+);
+
 export default function Employees() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
@@ -954,9 +962,16 @@ export default function Employees() {
                 <button
                   type="submit"
                   disabled={createEmpMutation.isPending || updateEmpMutation.isPending}
-                  className="px-4 py-2 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-75 flex items-center justify-center space-x-1.5"
                 >
-                  {createEmpMutation.isPending || updateEmpMutation.isPending ? 'Saving...' : (editingEmployee ? 'Save Changes' : 'Register Employee')}
+                  {createEmpMutation.isPending || updateEmpMutation.isPending ? (
+                    <>
+                      <ConcentricSpinner className="text-white w-4 h-4" />
+                      <span>Saving Profile...</span>
+                    </>
+                  ) : (
+                    <span>{editingEmployee ? 'Save Changes' : 'Register Employee'}</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -1159,9 +1174,16 @@ export default function Employees() {
                 <button
                   type="submit"
                   disabled={createGradeMutation.isPending || updateGradeMutation.isPending}
-                  className="px-4 py-2 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-75 flex items-center justify-center space-x-1.5"
                 >
-                  {createGradeMutation.isPending || updateGradeMutation.isPending ? 'Saving...' : (editingGrade ? 'Save Changes' : 'Create Salary Grade')}
+                  {createGradeMutation.isPending || updateGradeMutation.isPending ? (
+                    <>
+                      <ConcentricSpinner className="text-white w-4 h-4" />
+                      <span>Saving Grade...</span>
+                    </>
+                  ) : (
+                    <span>{editingGrade ? 'Save Changes' : 'Create Salary Grade'}</span>
+                  )}
                 </button>
               </div>
             </form>

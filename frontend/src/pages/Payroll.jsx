@@ -6,6 +6,29 @@ import { useAuthStore } from '../store/authStore';
 import api from '../utils/api';
 import { CreditCard, Calendar, Plus, ChevronRight, CheckCircle, Wallet, Download, Upload, Save, AlertCircle, FileText, CheckCircle2, Lock } from 'lucide-react';
 
+// Premium loader spinners for premium UI interactions
+const ConcentricSpinner = ({ className = "w-4 h-4" }) => (
+  <svg className={`animate-spin ${className}`} viewBox="0 0 24 24" fill="none">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+  </svg>
+);
+
+const GearSpinner = ({ className = "w-4 h-4" }) => (
+  <svg className={`animate-spin ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
+
+const DownloadProgressLoader = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" className="animate-bounce" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
 export default function Payroll() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
@@ -22,6 +45,8 @@ export default function Payroll() {
   // Manual attendance edits state
   const [attendanceEdits, setAttendanceEdits] = useState({});
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [downloadingPayslipId, setDownloadingPayslipId] = useState(null);
+  const [isRecalculatingRun, setIsRecalculatingRun] = useState(false);
 
   // Compliance preview modal states
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -224,6 +249,7 @@ export default function Payroll() {
   };
 
   const handleDownloadPayslip = async (runId, employeeId, name) => {
+    setDownloadingPayslipId(employeeId);
     try {
       const response = await api.get(`/payroll/${runId}/payslip/${employeeId}`, {
         responseType: 'blob',
@@ -249,6 +275,8 @@ export default function Payroll() {
         errMsg = err.response.data.message;
       }
       alert(`Unable to generate payslip PDF: ${errMsg}`);
+    } finally {
+      setDownloadingPayslipId(null);
     }
   };
 
@@ -391,9 +419,16 @@ export default function Payroll() {
               <button
                 type="submit"
                 disabled={computeMutation.isPending}
-                className="w-full py-2.5 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+                className="w-full py-2.5 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-75 flex items-center justify-center space-x-2"
               >
-                <span>{computeMutation.isPending ? 'Computing...' : 'Calculate Draft'}</span>
+                {computeMutation.isPending ? (
+                  <>
+                    <ConcentricSpinner className="text-white w-4 h-4" />
+                    <span>Computing Draft...</span>
+                  </>
+                ) : (
+                  <span>Calculate Draft</span>
+                )}
               </button>
             </form>
           ) : (
@@ -487,7 +522,9 @@ export default function Payroll() {
                     <div className="flex items-center space-x-2">
                       <button
                         type="button"
+                        disabled={isRecalculatingRun}
                         onClick={async () => {
+                          setIsRecalculatingRun(true);
                           try {
                             setSuccessMsg('Recalculating payroll figures...');
                             await api.post('/payroll/compute', {
@@ -501,34 +538,49 @@ export default function Payroll() {
                           } catch (err) {
                             setErrorMsg(err.response?.data?.message || 'Failed to recalculate payroll.');
                             setTimeout(() => setErrorMsg(''), 4000);
+                          } finally {
+                            setIsRecalculatingRun(false);
                           }
                         }}
-                        className="flex items-center space-x-1.5 px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 bg-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+                        className="flex items-center space-x-1.5 px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 bg-white rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-75"
                       >
-                        <Save className="w-4 h-4 text-forest-800" />
-                        <span>Recalculate Run</span>
+                        {isRecalculatingRun ? (
+                          <GearSpinner className="w-4 h-4 text-forest-800" />
+                        ) : (
+                          <Save className="w-4 h-4 text-forest-800" />
+                        )}
+                        <span>{isRecalculatingRun ? 'Recalculating...' : 'Recalculate Run'}</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => approveMutation.mutate(selectedRunDetails._id)}
                         disabled={approveMutation.isPending}
-                        className="flex items-center space-x-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
+                        className="flex items-center space-x-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-75"
                       >
-                        <CheckCircle className="w-4 h-4" />
-                        <span>Approve Run</span>
+                        {approveMutation.isPending ? (
+                          <ConcentricSpinner className="text-white w-4 h-4" />
+                        ) : (
+                          <CheckCircle className="w-4 h-4" />
+                        )}
+                        <span>{approveMutation.isPending ? 'Approving...' : 'Approve Run'}</span>
                       </button>
                     </div>
                   )}
 
                   {selectedRunDetails.status === 'approved' && canPay && (
                     <button
+                      type="button"
                       onClick={() => payMutation.mutate(selectedRunDetails._id)}
                       disabled={payMutation.isPending}
-                      className="flex items-center space-x-2 px-4 py-2 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
+                      className="flex items-center space-x-2 px-4 py-2 bg-forest-900 hover:bg-forest-800 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-75"
                     >
-                      <Wallet className="w-4 h-4" />
-                      <span>Process Payouts</span>
+                      {payMutation.isPending ? (
+                        <ConcentricSpinner className="text-white w-4 h-4" />
+                      ) : (
+                        <Wallet className="w-4 h-4" />
+                      )}
+                      <span>{payMutation.isPending ? 'Processing Payouts...' : 'Process Payouts'}</span>
                     </button>
                   )}
                 </div>
@@ -736,10 +788,15 @@ export default function Payroll() {
                                 {hasFeature('pdf_payslips') ? (
                                   <button
                                     onClick={() => handleDownloadPayslip(selectedRunDetails._id, record.employeeId?._id || record.employeeId, record.name)}
-                                    className="inline-flex items-center space-x-1 px-2.5 py-1 bg-forest-50 text-forest-700 rounded hover:bg-forest-100 font-medium transition-colors"
+                                    disabled={downloadingPayslipId === (record.employeeId?._id || record.employeeId)}
+                                    className="inline-flex items-center space-x-1 px-2.5 py-1 bg-forest-50 text-forest-700 rounded hover:bg-forest-100 font-medium transition-colors disabled:opacity-75"
                                   >
-                                    <Download className="w-3.5 h-3.5" />
-                                    <span>PDF</span>
+                                    {downloadingPayslipId === (record.employeeId?._id || record.employeeId) ? (
+                                      <DownloadProgressLoader className="w-3.5 h-3.5 text-forest-900" />
+                                    ) : (
+                                      <Download className="w-3.5 h-3.5" />
+                                    )}
+                                    <span>{downloadingPayslipId === (record.employeeId?._id || record.employeeId) ? '...' : 'PDF'}</span>
                                   </button>
                                 ) : (
                                   <span className="text-[10px] text-slate-400 font-semibold flex items-center justify-end space-x-1">
@@ -1013,11 +1070,19 @@ export default function Payroll() {
                   </button>
                   {isDraft && (
                     <button
+                      type="button"
                       onClick={handleSaveAndRecalculate}
                       disabled={isRecalculating}
-                      className="flex-1 py-2 bg-forest-900 hover:bg-forest-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                      className="flex-1 py-2 bg-forest-900 hover:bg-forest-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 disabled:opacity-75"
                     >
-                      <span>{isRecalculating ? 'Recalculating...' : 'Save & Re-calculate'}</span>
+                      {isRecalculating ? (
+                        <>
+                          <GearSpinner className="text-white w-3.5 h-3.5" />
+                          <span>Recalculating...</span>
+                        </>
+                      ) : (
+                        <span>Save & Re-calculate</span>
+                      )}
                     </button>
                   )}
                 </div>

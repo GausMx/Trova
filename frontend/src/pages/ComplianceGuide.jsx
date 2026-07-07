@@ -2,19 +2,33 @@ import React, { useState } from 'react';
 import { BookOpen, ShieldCheck, Scale, Award, Landmark, HelpCircle, CheckCircle, Calculator, Percent } from 'lucide-react';
 
 export default function ComplianceGuide() {
-  const [testGross, setTestGross] = useState(6000000); // 6M NGN Gross
-  const [testRent, setTestRent] = useState(1200005); // ~1.2M NGN Rent
-  const [testLifeIns, setTestLifeIns] = useState(150000); // 150k Life Ins
+  const [basicSalary, setBasicSalary] = useState(333000);
+  const [housingAllowance, setHousingAllowance] = useState(15050);
+  const [transportAllowance, setTransportAllowance] = useState(5000);
+  const [otherAllowances, setOtherAllowances] = useState(3000);
+  const [annualRent, setAnnualRent] = useState(150000);
+  const [annualLifeIns, setAnnualLifeIns] = useState(30000);
+  const [nhfOptIn, setNhfOptIn] = useState(true);
+  const [nhisOptIn, setNhisOptIn] = useState(true);
+  const [empCount, setEmpCount] = useState(6);
 
   // 2026 Calculation simulation
-  const calcPension = (testGross * 0.50) * 0.08; // assume B+H+T is ~50% of gross for illustration
-  const calcNhf = (testGross * 0.25) * 0.025; // assume Basic is ~25% of gross
-  const calcNhis = (testGross * 0.25) * 0.05; 
-  const calcRentRelief = Math.min(testRent * 0.20, 500000);
-  const calcLifeIns = testLifeIns;
+  const monthlyGross = basicSalary + housingAllowance + transportAllowance + otherAllowances;
+  const annualGross = monthlyGross * 12;
+
+  // Pension (8% of B + H + T)
+  const calcPension = (basicSalary + housingAllowance + transportAllowance) * 0.08 * 12;
+  // NHF (2.5% of Basic)
+  const calcNhf = nhfOptIn ? (basicSalary * 0.025 * 12) : 0;
+  // NHIS (5% of Basic) - applies if company has 5+ employees or if opted in
+  const nhisApplies = (empCount >= 5) || nhisOptIn;
+  const calcNhis = nhisApplies ? (basicSalary * 0.05 * 12) : 0;
+  // Rent Relief (20% of rent, max 500k)
+  const calcRentRelief = Math.min(annualRent * 0.20, 500000);
+  const calcLifeIns = annualLifeIns;
 
   const totalDeductions = calcPension + calcNhf + calcNhis + calcRentRelief + calcLifeIns;
-  const taxableIncome = Math.max(0, testGross - totalDeductions);
+  const taxableIncome = Math.max(0, annualGross - totalDeductions);
 
   // Progressive bands
   const bands = [
@@ -291,41 +305,107 @@ export default function ComplianceGuide() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Inputs */}
-          <div className="space-y-4 bg-white/5 p-5 rounded-2xl border border-white/5">
-            <h4 className="font-bold text-sm text-slate-200">Adjust Annual Figures</h4>
+          <div className="space-y-3 bg-white/5 p-4 rounded-2xl border border-white/5 overflow-y-auto max-h-[65vh]">
+            <h4 className="font-bold text-xs text-slate-200">Adjust Component Figures</h4>
             
             <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">Annual Gross Salary (₦)</label>
-              <input
-                type="number"
-                step="100000"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                value={testGross}
-                onChange={(e) => setTestGross(Number(e.target.value))}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">Annual Rent Paid (₦)</label>
-              <input
-                type="number"
-                step="50000"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                value={testRent}
-                onChange={(e) => setTestRent(Number(e.target.value))}
-              />
-              <span className="text-[10px] text-slate-500 block mt-1">Rent Relief is 20% of rent, max ₦500k</span>
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-400 font-semibold mb-1.5">Annual Life Insurance Premiums (₦)</label>
+              <label className="block text-[10px] text-slate-400 font-semibold mb-1">Monthly Basic Salary (₦)</label>
               <input
                 type="number"
                 step="10000"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                value={testLifeIns}
-                onChange={(e) => setTestLifeIns(Number(e.target.value))}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                value={basicSalary}
+                onChange={(e) => setBasicSalary(Number(e.target.value))}
               />
+            </div>
+
+            <div>
+              <label className="block text-[10px] text-slate-400 font-semibold mb-1">Monthly Housing Allowance (₦)</label>
+              <input
+                type="number"
+                step="5000"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                value={housingAllowance}
+                onChange={(e) => setHousingAllowance(Number(e.target.value))}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] text-slate-400 font-semibold mb-1">Monthly Transport Allowance (₦)</label>
+              <input
+                type="number"
+                step="5000"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                value={transportAllowance}
+                onChange={(e) => setTransportAllowance(Number(e.target.value))}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] text-slate-400 font-semibold mb-1">Monthly Other Allowances (₦)</label>
+              <input
+                type="number"
+                step="1000"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                value={otherAllowances}
+                onChange={(e) => setOtherAllowances(Number(e.target.value))}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] text-slate-400 font-semibold mb-1">Annual Rent Paid (₦)</label>
+              <input
+                type="number"
+                step="50000"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                value={annualRent}
+                onChange={(e) => setAnnualRent(Number(e.target.value))}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] text-slate-400 font-semibold mb-1">Annual Life Insurance Premiums (₦)</label>
+              <input
+                type="number"
+                step="10000"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                value={annualLifeIns}
+                onChange={(e) => setAnnualLifeIns(Number(e.target.value))}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] text-slate-400 font-semibold mb-1">Company Employee Count</label>
+              <input
+                type="number"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                value={empCount}
+                onChange={(e) => setEmpCount(Number(e.target.value))}
+              />
+            </div>
+
+            <div className="flex flex-col space-y-1.5 pt-2">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="calcNhfOpt"
+                  className="rounded text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5"
+                  checked={nhfOptIn}
+                  onChange={(e) => setNhfOptIn(e.target.checked)}
+                />
+                <label htmlFor="calcNhfOpt" className="text-[10px] text-slate-350 font-semibold">Opt-in to Voluntary NHF</label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="calcNhisOpt"
+                  className="rounded text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5"
+                  checked={nhisOptIn}
+                  onChange={(e) => setNhisOptIn(e.target.checked)}
+                />
+                <label htmlFor="calcNhisOpt" className="text-[10px] text-slate-350 font-semibold">Opt-in to NHIS</label>
+              </div>
             </div>
           </div>
 
@@ -336,15 +416,15 @@ export default function ComplianceGuide() {
               
               <div className="space-y-3 mt-4 text-xs">
                 <div className="flex justify-between border-b border-white/5 pb-2">
-                  <span className="text-slate-400">Pension (Est. 8% of Emoluments)</span>
+                  <span className="text-slate-400">Pension (8% of Emoluments base)</span>
                   <span className="font-semibold text-white">₦{calcPension.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between border-b border-white/5 pb-2">
-                  <span className="text-slate-400">NHF (Est. 2.5% of Basic)</span>
+                  <span className="text-slate-400">NHF (2.5% of Basic)</span>
                   <span className="font-semibold text-white">₦{calcNhf.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between border-b border-white/5 pb-2">
-                  <span className="text-slate-400">NHIS (Est. 5% of Basic)</span>
+                  <span className="text-slate-400">NHIS (5% of Basic)</span>
                   <span className="font-semibold text-white">₦{calcNhis.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between border-b border-white/5 pb-2">
