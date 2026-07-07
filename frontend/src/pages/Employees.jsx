@@ -49,6 +49,8 @@ export default function Employees() {
     mutationFn: (newEmployee) => api.post('/employees', newEmployee),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['payrollRuns'] });
+      queryClient.invalidateQueries({ queryKey: ['payrollRunDetails'] });
       setIsEmpModalOpen(false);
       empFormReset();
       showSuccess('Employee registered successfully.');
@@ -62,6 +64,8 @@ export default function Employees() {
     mutationFn: ({ id, data }) => api.put(`/employees/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['payrollRuns'] });
+      queryClient.invalidateQueries({ queryKey: ['payrollRunDetails'] });
       setIsEmpModalOpen(false);
       setEditingEmployee(null);
       empFormReset();
@@ -77,6 +81,8 @@ export default function Employees() {
     mutationFn: (id) => api.put(`/employees/${id}/reset-salary`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['payrollRuns'] });
+      queryClient.invalidateQueries({ queryKey: ['payrollRunDetails'] });
       showSuccess('Employee salary reset to grade figures successfully.');
     },
     onError: (err) => {

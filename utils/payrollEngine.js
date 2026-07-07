@@ -109,8 +109,8 @@ const calculateMonthlyPayroll = (employee, attendance = null) => {
   const monthlyNhf = nhfOptIn ? (basic * NHF.EMPLOYEE_RATE) : 0;
   const annualNhf = monthlyNhf * 12;
 
-  // 4. Calculate NHIS (5% of Basic) - 2026: 10+ employees
-  const nhisApplies = nhisOptIn && companyEmployeeCount >= 10;
+  // 4. Calculate NHIS (5% of Basic) - 2026: 5+ employees
+  const nhisApplies = (companyEmployeeCount >= 5) || nhisOptIn;
   const monthlyNhis = nhisApplies ? (basic * 0.05) : 0;
   const annualNhis = monthlyNhis * 12;
 

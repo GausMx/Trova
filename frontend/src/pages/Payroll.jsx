@@ -96,9 +96,10 @@ export default function Payroll() {
     const empPension = (basic + housing + transport) * 0.08;
     const empNhf = modNhfOptIn ? (basic * 0.025) : 0;
     
-    // Check if company has >= 10 employees
+    // Check if company has >= 5 employees
     const empCount = selectedRunDetails.employees?.length || 0;
-    const empNhis = (modNhisOptIn && empCount >= 10) ? (basic * 0.05) : 0;
+    const nhisApplies = (empCount >= 5) || modNhisOptIn;
+    const empNhis = nhisApplies ? (basic * 0.05) : 0;
     
     const rentRelief = Math.min(modAnnualRent * 0.20, 500000);
     const lifeIns = Number(modLifeIns) || 0;
@@ -130,7 +131,7 @@ export default function Payroll() {
 
     // Employer Overhead
     const employerPension = (basic + housing + transport) * 0.10;
-    const employerNhis = (modNhisOptIn && empCount >= 10) ? (basic * 0.10) : 0;
+    const employerNhis = nhisApplies ? (basic * 0.10) : 0;
     const nsitf = gross * 0.01;
     const itf = (empCount >= 5 || annualGross > 50000) ? (gross * 0.01) : 0;
 

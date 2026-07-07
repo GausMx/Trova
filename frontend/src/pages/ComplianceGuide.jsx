@@ -135,7 +135,7 @@ export default function ComplianceGuide() {
                     </div>
                     <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                       <span className="font-bold text-slate-700 text-xs block">NHIS (Health Scheme)</span>
-                      <span className="text-[11px] text-slate-550 mt-1 block">5% of Basic. Mandatory for companies with 10+ employees.</span>
+                      <span className="text-[11px] text-slate-550 mt-1 block">5% of Basic. Mandatory for companies with 5+ employees.</span>
                     </div>
                     <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                       <span className="font-bold text-slate-700 text-xs block">Rent Relief & Life Insurance</span>

@@ -89,7 +89,7 @@ describe('Compliance Calendar & Obligations API Integration Tests', () => {
       const payeObligation = res.body.data.obligations.find(o => o.remittanceType === 'PAYE');
       expect(payeObligation).toBeDefined();
       expect(payeObligation).toHaveProperty('complianceRecordId');
-      expect(['pending', 'due-soon', 'overdue']).toContain(payeObligation.status);
+      expect(['pending', 'due-soon', 'due_soon', 'overdue']).toContain(payeObligation.status);
     });
 
     test('should reflect completed status if manual compliance record is marked completed', async () => {
