@@ -97,56 +97,6 @@ const MainLayout = ({ children }) => {
   const isLockedOut = !isTrialActive && !isSubscriptionActive;
 
   const renderBanner = () => {
-    if (isTrialActive) {
-      if (daysRemaining > 7) {
-        return (
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white text-center py-2 px-4 text-sm font-medium flex items-center justify-center space-x-3 shrink-0 shadow-sm transition-all duration-300">
-            <span>Your free trial ends in <span className="font-bold">{daysRemaining}</span> days. Upgrade to Growth or Enterprise to keep advanced features.</span>
-            <Link
-              to="/billing"
-              className="bg-white text-emerald-800 px-3 py-1 rounded-md text-xs font-semibold hover:bg-emerald-50 transition-colors shadow-sm"
-            >
-              Upgrade Plan
-            </Link>
-          </div>
-        );
-      } else {
-        return (
-          <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white text-center py-2.5 px-4 text-sm font-medium flex items-center justify-center space-x-3 shrink-0 shadow-sm transition-all duration-300">
-            <span>⚠️ Your free trial ends in <span className="font-bold">{daysRemaining}</span> days. Upgrade your subscription now to avoid service interruption.</span>
-            <Link
-              to="/billing"
-              className="bg-white text-amber-900 px-3 py-1 rounded-md text-xs font-semibold hover:bg-amber-50 transition-colors shadow-sm"
-            >
-              Upgrade Now
-            </Link>
-          </div>
-        );
-      }
-    }
-
-    if (isTrialExpired && !isDismissed) {
-      return (
-        <div className="bg-gradient-to-r from-rose-600 to-red-700 text-white py-2.5 px-6 text-sm font-medium flex items-center justify-between shrink-0 shadow-sm transition-all duration-300">
-          <div className="flex items-center space-x-3 mx-auto">
-            <span>Your free trial has expired. You have been downgraded to the Starter tier. Upgrade to Growth or Enterprise to restore advanced features.</span>
-            <Link
-              to="/billing"
-              className="bg-white text-rose-800 px-3 py-1 rounded-md text-xs font-semibold hover:bg-rose-50 transition-colors shadow-sm"
-            >
-              Upgrade Plan
-            </Link>
-          </div>
-          <button
-            onClick={handleDismiss}
-            className="text-white/80 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      );
-    }
-
     return null;
   };
 
@@ -163,9 +113,10 @@ const MainLayout = ({ children }) => {
     { name: 'Compliance Guide', path: '/compliance-guide', icon: BookOpen },
   ];
 
-  if (['owner', 'admin'].includes(user?.role)) {
-    navItems.push({ name: 'Billing', path: '/billing', icon: Receipt });
-  }
+  // Billing navigation hidden for prototype presentation
+  // if (['owner', 'admin'].includes(user?.role)) {
+  //   navItems.push({ name: 'Billing', path: '/billing', icon: Receipt });
+  // }
 
   if (!user) return null;
 
