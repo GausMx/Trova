@@ -119,6 +119,7 @@ exports.getBillingStatus = catchAsync(async (req, res) => {
   return sendSuccess(res, 'Billing status retrieved successfully', {
     subscriptionTier: company.subscriptionTier,
     status: company.status,
+    subscriptionStatus: company.subscriptionStatus,
     isTrial: company.isTrial,
     trialEndsAt: company.trialEndsAt
   });

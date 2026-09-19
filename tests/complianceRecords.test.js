@@ -73,7 +73,7 @@ describe('Compliance Records & Manual Confirmation API Tests', () => {
       .post('/api/auth/login')
       .send({ email: 'betty@bugle.test', password: 'bettyPassword123' });
     financeToken = financeLogin.body.data.token;
-
+    
     // 3. Create HR User
     await User.create({
       companyId,

@@ -80,23 +80,72 @@ const MainLayout = ({ children }) => {
     }
   };
 
-  // Compute remaining trial days
+  // Compute trial status
   let daysRemaining = 0;
   let isTrialActive = false;
   let isTrialExpired = false;
 
-  if (subscriptionStatus === 'trial' && trialEndsAt) {
-    isTrialActive = true;
+  const isTrial = company?.isTrial ?? (subscriptionStatus === 'trial');
+
+  if (isTrial && trialEndsAt) {
     const msDiff = new Date(trialEndsAt).getTime() - Date.now();
-    daysRemaining = Math.max(0, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
-  } else if (subscriptionStatus !== 'trial' && trialEndsAt && new Date(trialEndsAt).getTime() < Date.now()) {
+    if (msDiff > 0) {
+      isTrialActive = true;
+      daysRemaining = Math.max(1, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
+    } else {
+      isTrialExpired = true;
+    }
+  } else if (!isTrial && trialEndsAt && new Date(trialEndsAt).getTime() < Date.now() && subscriptionStatus !== 'active') {
     isTrialExpired = true;
   }
 
   const isSubscriptionActive = subscriptionStatus === 'active';
   const isLockedOut = !isTrialActive && !isSubscriptionActive;
 
+  const isBillingRoute = location.pathname === '/billing' || location.pathname === '/billing/callback';
+
   const renderBanner = () => {
+    if (isDismissed) return null;
+
+    if (isTrialActive) {
+      return (
+        <div className="bg-forest-900 text-white px-4 py-2.5 text-xs sm:text-sm font-medium flex items-center justify-between shadow-sm shrink-0 border-b border-forest-800">
+          <div className="flex items-center space-x-2 mx-auto sm:mx-0">
+            <span className="bg-amber-400 text-forest-950 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Free Trial</span>
+            <span>You have <strong>{daysRemaining} day{daysRemaining === 1 ? '' : 's'} remaining</strong> on your 30-day trial.</span>
+          </div>
+          <div className="flex items-center space-x-3">
+            {user?.role === 'owner' && (
+              <Link to="/billing" className="hidden sm:inline-flex items-center space-x-1 bg-white text-forest-900 hover:bg-forest-50 px-3 py-1 rounded-md text-xs font-bold transition-colors">
+                <span>Upgrade Plan</span>
+              </Link>
+            )}
+            <button onClick={handleDismiss} className="text-forest-300 hover:text-white p-1 rounded-md">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (isTrialExpired && !isBillingRoute) {
+      return (
+        <div className="bg-rose-900 text-white px-4 py-2.5 text-xs sm:text-sm font-medium flex items-center justify-between shadow-sm shrink-0 border-b border-rose-800">
+          <div className="flex items-center space-x-2 mx-auto sm:mx-0">
+            <span className="bg-rose-400 text-rose-950 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Expired</span>
+            <span>Your free trial has expired. {user?.role === 'owner' ? 'Select a subscription plan to reactivate full access.' : 'Please contact your company owner.'}</span>
+          </div>
+          <div className="flex items-center space-x-3">
+            {user?.role === 'owner' && (
+              <Link to="/billing" className="hidden sm:inline-flex items-center space-x-1 bg-white text-rose-950 hover:bg-rose-50 px-3 py-1 rounded-md text-xs font-bold transition-colors">
+                <span>Configure Billing</span>
+              </Link>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     return null;
   };
 
@@ -113,14 +162,11 @@ const MainLayout = ({ children }) => {
     { name: 'Compliance Guide', path: '/compliance-guide', icon: BookOpen },
   ];
 
-  // Billing navigation hidden for prototype presentation
-  // if (['owner', 'admin'].includes(user?.role)) {
-  //   navItems.push({ name: 'Billing', path: '/billing', icon: Receipt });
-  // }
+  if (['owner', 'admin'].includes(user?.role)) {
+    navItems.push({ name: 'Billing', path: '/billing', icon: Receipt });
+  }
 
   if (!user) return null;
-
-  const isBillingRoute = location.pathname === '/billing' || location.pathname === '/billing/callback';
 
   if (isLockedOut && !isBillingRoute) {
     if (user?.role === 'owner') {

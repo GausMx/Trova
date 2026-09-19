@@ -31,9 +31,14 @@ export default function Billing() {
 
   const subscriptionTier = statusRes?.data?.subscriptionTier || 'growth';
   const accountStatus = statusRes?.data?.status || 'active';
-  const isTrial = statusRes?.data?.isTrial;
+  const subscriptionStatus = statusRes?.data?.subscriptionStatus;
+  const isTrial = statusRes?.data?.isTrial ?? (subscriptionStatus === 'trial');
   const trialEndsAt = statusRes?.data?.trialEndsAt;
   const isOwner = user?.role === 'owner';
+
+  const isTrialExpired = Boolean(isTrial && trialEndsAt && new Date(trialEndsAt).getTime() <= Date.now());
+  const isTrialActive = Boolean(isTrial && trialEndsAt && new Date(trialEndsAt).getTime() > Date.now());
+  const hasActivePaidSubscription = Boolean(!isTrial && (subscriptionStatus === 'active' || accountStatus === 'active'));
 
   const handleUpgrade = (tier) => {
     if (!isOwner) return;
@@ -43,9 +48,9 @@ export default function Billing() {
 
   // Compute remaining trial days
   let daysRemaining = 0;
-  if (isTrial && trialEndsAt) {
+  if (isTrialActive && trialEndsAt) {
     const msDiff = new Date(trialEndsAt).getTime() - Date.now();
-    daysRemaining = Math.max(0, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
+    daysRemaining = Math.max(1, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
   }
 
   const planTiers = [
@@ -108,14 +113,26 @@ export default function Billing() {
         <p className="text-slate-500 text-sm mt-0.5">Manage your corporate billing, view active plan features, or upgrade your subscription.</p>
       </div>
 
-      {isTrial && (
-        <div className="bg-forest-900 text-white p-6 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm border border-forest-805">
+      {isTrialActive && (
+        <div className="bg-forest-900 text-white p-6 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm border border-forest-800">
           <div>
-            <h3 className="font-bold text-lg">You are on a 30-day free trial — {daysRemaining} days remaining</h3>
+            <h3 className="font-bold text-lg">You are on a 30-day free trial — {daysRemaining} day{daysRemaining === 1 ? '' : 's'} remaining</h3>
             <p className="text-forest-100 text-xs mt-1">Upgrade anytime to keep access and configure automated payroll runs.</p>
           </div>
           <span className="bg-white/20 text-white text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-lg self-start sm:self-auto">
             Trial Mode
+          </span>
+        </div>
+      )}
+
+      {isTrialExpired && (
+        <div className="bg-rose-900 text-white p-6 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm border border-rose-800">
+          <div>
+            <h3 className="font-bold text-lg">Your 30-day free trial has expired</h3>
+            <p className="text-rose-100 text-xs mt-1">Please select and subscribe to a billing plan below to reactivate full access for your company.</p>
+          </div>
+          <span className="bg-rose-800 text-white text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-lg self-start sm:self-auto">
+            Expired
           </span>
         </div>
       )}
@@ -140,17 +157,25 @@ export default function Billing() {
                 <CreditCard className="w-6 h-6" />
               </div>
               <div>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Active Subscription Plan</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                  {hasActivePaidSubscription ? 'Active Subscription Plan' : 'Subscription Status'}
+                </p>
                 <div className="flex items-center space-x-2 mt-0.5">
-                  <h3 className="font-bold text-lg text-slate-855 capitalize">{subscriptionTier} Plan</h3>
+                  <h3 className="font-bold text-lg text-slate-800 capitalize">
+                    {hasActivePaidSubscription
+                      ? `${subscriptionTier} Plan`
+                      : isTrialExpired
+                      ? 'Free Trial (Expired)'
+                      : `${subscriptionTier} Plan (Trial)`}
+                  </h3>
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                    isTrial
-                      ? 'bg-amber-50 text-amber-700 border-amber-205'
-                      : accountStatus === 'active' 
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                    hasActivePaidSubscription
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : isTrialExpired
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
                   }`}>
-                    {isTrial ? 'Trial' : accountStatus}
+                    {hasActivePaidSubscription ? 'Active' : isTrialExpired ? 'Trial Expired' : 'Trial'}
                   </span>
                 </div>
               </div>
@@ -159,7 +184,7 @@ export default function Billing() {
             {/* Role Notice */}
             {!isOwner && (
               <div className="max-w-xs md:text-right text-xs bg-slate-50 border border-slate-100 p-3 rounded-lg text-slate-500">
-                Only the company **Owner** can update subscription plans or billing details.
+                Only the company <strong>Owner</strong> can update subscription plans or billing details.
               </div>
             )}
           </>
@@ -169,8 +194,8 @@ export default function Billing() {
       {/* Plans Comparison Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {planTiers.map((plan) => {
-          // If the user is on trial, they must be allowed to click Upgrade on any tier (including their trial tier) to pay.
-          const isCurrentPlan = !isTrial && subscriptionTier === plan.id;
+          // Only flag as current plan if there's an active paid subscription
+          const isCurrentPlan = hasActivePaidSubscription && subscriptionTier === plan.id;
 
           return (
             <div
