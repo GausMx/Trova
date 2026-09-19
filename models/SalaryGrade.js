@@ -56,10 +56,6 @@ const SalaryGradeSchema = new mongoose.Schema(
       type: String,
       default: ''
     },
-    pensionPin: {
-      type: String,
-      default: ''
-    },
     annualRentPaid: {
       type: Number,
       default: 0

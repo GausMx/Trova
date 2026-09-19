@@ -104,7 +104,6 @@ exports.createEmployee = catchAsync(async (req, res) => {
     if (finalNhfOptIn === undefined) finalNhfOptIn = grade.nhfOptIn;
     if (finalNhisOptIn === undefined) finalNhisOptIn = grade.nhisOptIn;
     if (finalPfaName === undefined || finalPfaName === '') finalPfaName = grade.pfaName;
-    if (finalPensionPin === undefined || finalPensionPin === '') finalPensionPin = grade.pensionPin;
     if (finalAnnualRentPaid === undefined) finalAnnualRentPaid = grade.annualRentPaid;
     if (finalAnnualLifeInsurance === undefined) finalAnnualLifeInsurance = grade.annualLifeInsurance;
   }
@@ -312,7 +311,6 @@ exports.updateEmployee = catchAsync(async (req, res) => {
         employee.nhfOptIn = !!grade.nhfOptIn;
         employee.nhisOptIn = !!grade.nhisOptIn;
         employee.pfaName = grade.pfaName || '';
-        employee.pensionPin = grade.pensionPin || '';
         employee.annualRentPaid = grade.annualRentPaid || 0;
         employee.annualLifeInsurance = grade.annualLifeInsurance || 0;
       }

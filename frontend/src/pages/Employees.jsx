@@ -253,7 +253,6 @@ export default function Employees() {
     setGradeValue('nhfOptIn', !!grade.nhfOptIn);
     setGradeValue('nhisOptIn', !!grade.nhisOptIn);
     setGradeValue('pfaName', grade.pfaName || '');
-    setGradeValue('pensionPin', grade.pensionPin || '');
     setGradeValue('annualRentPaid', grade.annualRentPaid || 0);
     setGradeValue('annualLifeInsurance', grade.annualLifeInsurance || 0);
     setIsGradeModalOpen(true);
@@ -303,11 +302,6 @@ export default function Employees() {
       const currentPfa = watchEmp('pfaName');
       if (!currentPfa) {
         setEmpValue('pfaName', selectedGrade.pfaName || '');
-      }
-      
-      const currentPensionPin = watchEmp('pensionPin');
-      if (!currentPensionPin) {
-        setEmpValue('pensionPin', selectedGrade.pensionPin || '');
       }
       
       const currentRent = watchEmp('annualRentPaid');
@@ -1100,16 +1094,6 @@ export default function Employees() {
                         placeholder="e.g. Stanbic IBTC Pension"
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
                         {...registerGrade('pfaName')}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Default Pension PIN</label>
-                      <input
-                        type="text"
-                        placeholder="PENXXXXXXXXXXXXX"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
-                        {...registerGrade('pensionPin')}
                       />
                     </div>
 

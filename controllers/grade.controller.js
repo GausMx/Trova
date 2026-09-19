@@ -30,7 +30,6 @@ exports.createGrade = catchAsync(async (req, res) => {
     nhfOptIn,
     nhisOptIn,
     pfaName,
-    pensionPin,
     annualRentPaid,
     annualLifeInsurance
   } = req.body;
@@ -59,7 +58,6 @@ exports.createGrade = catchAsync(async (req, res) => {
     nhfOptIn: nhfOptIn === true || nhfOptIn === 'true',
     nhisOptIn: nhisOptIn === true || nhisOptIn === 'true',
     pfaName: pfaName || '',
-    pensionPin: pensionPin || '',
     annualRentPaid: annualRentPaid ? Number(annualRentPaid) : 0,
     annualLifeInsurance: annualLifeInsurance ? Number(annualLifeInsurance) : 0
   });
@@ -100,7 +98,6 @@ exports.updateGrade = catchAsync(async (req, res) => {
     nhfOptIn,
     nhisOptIn,
     pfaName,
-    pensionPin,
     annualRentPaid,
     annualLifeInsurance
   } = req.body;
@@ -138,7 +135,6 @@ exports.updateGrade = catchAsync(async (req, res) => {
   if (nhfOptIn !== undefined) grade.nhfOptIn = nhfOptIn === true || nhfOptIn === 'true';
   if (nhisOptIn !== undefined) grade.nhisOptIn = nhisOptIn === true || nhisOptIn === 'true';
   if (pfaName !== undefined) grade.pfaName = pfaName;
-  if (pensionPin !== undefined) grade.pensionPin = pensionPin;
   if (annualRentPaid !== undefined) grade.annualRentPaid = annualRentPaid ? Number(annualRentPaid) : 0;
   if (annualLifeInsurance !== undefined) grade.annualLifeInsurance = annualLifeInsurance ? Number(annualLifeInsurance) : 0;
 
