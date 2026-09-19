@@ -99,7 +99,7 @@ const MainLayout = ({ children }) => {
     isTrialExpired = true;
   }
 
-  const isSubscriptionActive = subscriptionStatus === 'active';
+  const isSubscriptionActive = !isTrial && subscriptionStatus === 'active';
   const isLockedOut = !isTrialActive && !isSubscriptionActive;
 
   const isBillingRoute = location.pathname === '/billing' || location.pathname === '/billing/callback';

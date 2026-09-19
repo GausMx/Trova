@@ -38,7 +38,7 @@ export default function Billing() {
 
   const isTrialExpired = Boolean(isTrial && trialEndsAt && new Date(trialEndsAt).getTime() <= Date.now());
   const isTrialActive = Boolean(isTrial && trialEndsAt && new Date(trialEndsAt).getTime() > Date.now());
-  const hasActivePaidSubscription = Boolean(!isTrial && (subscriptionStatus === 'active' || accountStatus === 'active'));
+  const hasActivePaidSubscription = Boolean(!isTrial && subscriptionStatus === 'active');
 
   const handleUpgrade = (tier) => {
     if (!isOwner) return;
