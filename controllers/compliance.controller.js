@@ -1,5 +1,6 @@
 const StatutoryCalendar = require('../models/StatutoryCalendar');
 const ComplianceRecord = require('../models/ComplianceRecord');
+const PayrollRun = require('../models/PayrollRun');
 const catchAsync = require('../utils/catchAsync');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
@@ -165,6 +166,42 @@ exports.getComplianceSummary = catchAsync(async (req, res) => {
       displayStatus = 'action-required';
     }
 
+    // Resolve corresponding payroll run monetary amounts
+    let payrollMonth = record.month === 1 ? 12 : record.month - 1;
+    let payrollYear = record.month === 1 ? record.year - 1 : record.year;
+
+    let payrollRun = await PayrollRun.findOne({
+      companyId: req.companyId,
+      month: payrollMonth,
+      year: payrollYear
+    });
+
+    if (!payrollRun) {
+      payrollRun = await PayrollRun.findOne({
+        companyId: req.companyId,
+        month: record.month,
+        year: record.year
+      });
+    }
+
+    let amount = 0;
+    if (payrollRun && payrollRun.totals) {
+      const type = item.remittanceType?.toUpperCase() || '';
+      if (type.includes('PAYE') || type.includes('TAX')) {
+        amount = payrollRun.totals.tax || 0;
+      } else if (type.includes('PENSION') || type.includes('PENCOM')) {
+        amount = (payrollRun.totals.pension || 0) + (payrollRun.totals.employerPension || 0);
+      } else if (type.includes('NSITF') || type.includes('ECS')) {
+        amount = payrollRun.totals.nsitf || 0;
+      } else if (type.includes('NHF')) {
+        amount = payrollRun.totals.nhf || 0;
+      } else if (type.includes('NHIS') || type.includes('NHIA')) {
+        amount = (payrollRun.totals.nhis || 0) + (payrollRun.totals.employerNhis || 0);
+      } else if (type.includes('ITF')) {
+        amount = payrollRun.totals.itf || 0;
+      }
+    }
+
     obligations.push({
       id: item._id,
       complianceRecordId: record._id,
@@ -173,6 +210,8 @@ exports.getComplianceSummary = catchAsync(async (req, res) => {
       dueDate: item.dueDate,
       authority: item.authority,
       remittanceType: item.remittanceType,
+      amount,
+      formattedAmount: amount > 0 ? `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : null,
       status: displayStatus,
       details,
       dueDayLabel: getDayWithSuffix(item.dueDate),

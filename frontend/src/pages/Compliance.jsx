@@ -133,11 +133,16 @@ export default function Compliance() {
                       className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
                     >
                       <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-bold text-slate-800 text-sm">{ob.title}</span>
                           <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-forest-50 text-forest-700 rounded-md border border-forest-100">
                             {ob.remittanceType}
                           </span>
+                          {ob.formattedAmount && (
+                            <span className="text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-0.5 rounded-md shadow-xs">
+                              {ob.formattedAmount}
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-slate-500">
                           Authority: <span className="font-medium">{ob.authority}</span> — Due by {ob.dueDayLabel || '10th'} of next month
