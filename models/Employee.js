@@ -31,6 +31,11 @@ const EmployeeSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    tin: {
+      type: String,
+      trim: true,
+      default: ''
+    },
     status: {
       type: String,
       enum: Object.values(EMPLOYEE_STATUS),

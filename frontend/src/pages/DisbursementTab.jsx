@@ -238,6 +238,15 @@ export default function DisbursementTab({ payrollRun, isApprovedOrPaid }) {
                     </td>
                   </tr>
 
+                  <tr className="hover:bg-slate-50/80 transition-colors">
+                    <td className="p-3.5 font-bold text-slate-900">ITF (1%)</td>
+                    <td className="p-3.5 font-medium text-slate-700">Industrial Training Fund</td>
+                    <td className="p-3.5 text-slate-500">1% Employer Overhead Levy (5+ Staff / N50M+ Turnover)</td>
+                    <td className="p-3.5 text-right font-bold text-slate-900">
+                      ₦{(summary.itf || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+
                   {(summary.nhf > 0 || summary.nhis > 0) && (
                     <tr className="hover:bg-slate-50/80 transition-colors">
                       <td className="p-3.5 font-bold text-slate-900">NHF / NHIS</td>

@@ -82,5 +82,46 @@ module.exports = {
     'Opay': '100004',
     'Moniepoint': '090405',
     'PalmPay': '100033'
-  }
+  },
+
+  // 36 States + FCT for multi-state PAYE SIRS routing
+  NIGERIAN_STATES: [
+    { code: 'Abia', name: 'Abia (ABIRS)' },
+    { code: 'Adamawa', name: 'Adamawa (ADIRS)' },
+    { code: 'Akwa Ibom', name: 'Akwa Ibom (AKIRS)' },
+    { code: 'Anambra', name: 'Anambra (AIRS)' },
+    { code: 'Bauchi', name: 'Bauchi (BASIRS)' },
+    { code: 'Bayelsa', name: 'Bayelsa (BYIRS)' },
+    { code: 'Benue', name: 'Benue (BIRS)' },
+    { code: 'Borno', name: 'Borno (BOIRS)' },
+    { code: 'Cross River', name: 'Cross River (CRIRS)' },
+    { code: 'Delta', name: 'Delta (DBIR)' },
+    { code: 'Ebonyi', name: 'Ebonyi (EBSIRS)' },
+    { code: 'Edo', name: 'Edo (EIRS)' },
+    { code: 'Ekiti', name: 'Ekiti (EKIRS)' },
+    { code: 'Enugu', name: 'Enugu (ESIRS)' },
+    { code: 'FCT', name: 'Abuja (FCT-IRS)' },
+    { code: 'Gombe', name: 'Gombe (GROIRS)' },
+    { code: 'Imo', name: 'Imo (IIRS)' },
+    { code: 'Jigawa', name: 'Jigawa (JIRS)' },
+    { code: 'Kaduna', name: 'Kaduna (KADIRS)' },
+    { code: 'Kano', name: 'Kano (KIRS)' },
+    { code: 'Katsina', name: 'Katsina (KATIRS)' },
+    { code: 'Kebbi', name: 'Kebbi (KBIRS)' },
+    { code: 'Kogi', name: 'Kogi (KGIRS)' },
+    { code: 'Kwara', name: 'Kwara (KWIRS)' },
+    { code: 'Lagos', name: 'Lagos (LIRS)' },
+    { code: 'Nasarawa', name: 'Nasarawa (NSBIR)' },
+    { code: 'Niger', name: 'Niger (NGSIRS)' },
+    { code: 'Ogun', name: 'Ogun (OGIRS)' },
+    { code: 'Ondo', name: 'Ondo (ODIRS)' },
+    { code: 'Osun', name: 'Osun (OSIRS)' },
+    { code: 'Oyo', name: 'Oyo (OYIRS)' },
+    { code: 'Plateau', name: 'Plateau (PSIRS)' },
+    { code: 'Rivers', name: 'Rivers (RIRS)' },
+    { code: 'Sokoto', name: 'Sokoto (SOIRS)' },
+    { code: 'Taraba', name: 'Taraba (TIRS)' },
+    { code: 'Yobe', name: 'Yobe (YIRS)' },
+    { code: 'Zamfara', name: 'Zamfara (ZIRS)' }
+  ]
 };

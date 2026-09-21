@@ -59,6 +59,7 @@ export default function Payroll() {
   const [modNhisOptIn, setModNhisOptIn] = useState(false);
   const [modPfaName, setModPfaName] = useState('');
   const [modPensionPin, setModPensionPin] = useState('');
+  const [modTin, setModTin] = useState('');
   const [modAnnualRent, setModAnnualRent] = useState(0);
   const [modLifeIns, setModLifeIns] = useState(0);
 
@@ -70,6 +71,7 @@ export default function Payroll() {
     setModNhisOptIn(emp.nhisOptIn !== undefined ? !!emp.nhisOptIn : false);
     setModPfaName(emp.pfaName || '');
     setModPensionPin(emp.pensionPin || '');
+    setModTin(emp.tin || '');
     setModAnnualRent(emp.annualRentPaid || 0);
     setModLifeIns(emp.annualLifeInsurance || 0);
     setIsPreviewOpen(true);
@@ -86,6 +88,7 @@ export default function Payroll() {
         nhisOptIn: modNhisOptIn,
         pfaName: modPfaName,
         pensionPin: modPensionPin,
+        tin: modTin,
         annualRentPaid: Number(modAnnualRent),
         annualLifeInsurance: Number(modLifeIns)
       });
@@ -988,7 +991,7 @@ export default function Payroll() {
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-550 mb-1">State of Work (SIRS Jurisdiction)</label>
+                    <label className="block text-xs font-bold text-slate-555 mb-1">State of Work (SIRS Jurisdiction)</label>
                     <select
                       disabled={!isDraft || isRecalculating}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-forest-100"
@@ -996,14 +999,55 @@ export default function Payroll() {
                       onChange={(e) => setModStateOfWork(e.target.value)}
                     >
                       <option value="Lagos">Lagos (LIRS)</option>
+                      <option value="Abia">Abia (ABIRS)</option>
+                      <option value="Adamawa">Adamawa (ADIRS)</option>
+                      <option value="Akwa Ibom">Akwa Ibom (AKIRS)</option>
+                      <option value="Anambra">Anambra (AIRS)</option>
+                      <option value="Bauchi">Bauchi (BASIRS)</option>
+                      <option value="Bayelsa">Bayelsa (BYIRS)</option>
+                      <option value="Benue">Benue (BIRS)</option>
+                      <option value="Borno">Borno (BOIRS)</option>
+                      <option value="Cross River">Cross River (CRIRS)</option>
+                      <option value="Delta">Delta (DBIR)</option>
+                      <option value="Ebonyi">Ebonyi (EBSIRS)</option>
+                      <option value="Edo">Edo (EIRS)</option>
+                      <option value="Ekiti">Ekiti (EKIRS)</option>
+                      <option value="Enugu">Enugu (ESIRS)</option>
                       <option value="FCT">Abuja (FCT-IRS)</option>
-                      <option value="Rivers">Rivers (RIRS)</option>
-                      <option value="Oyo">Oyo (OYIRS)</option>
-                      <option value="Kano">Kano (KIRS)</option>
+                      <option value="Gombe">Gombe (GROIRS)</option>
+                      <option value="Imo">Imo (IIRS)</option>
+                      <option value="Jigawa">Jigawa (JIRS)</option>
                       <option value="Kaduna">Kaduna (KADIRS)</option>
+                      <option value="Kano">Kano (KIRS)</option>
+                      <option value="Katsina">Katsina (KATIRS)</option>
+                      <option value="Kebbi">Kebbi (KBIRS)</option>
+                      <option value="Kogi">Kogi (KGIRS)</option>
+                      <option value="Kwara">Kwara (KWIRS)</option>
+                      <option value="Nasarawa">Nasarawa (NSBIR)</option>
+                      <option value="Niger">Niger (NGSIRS)</option>
                       <option value="Ogun">Ogun (OGIRS)</option>
-                      <option value="Delta">Delta (DIRS)</option>
+                      <option value="Ondo">Ondo (ODIRS)</option>
+                      <option value="Osun">Osun (OSIRS)</option>
+                      <option value="Oyo">Oyo (OYIRS)</option>
+                      <option value="Plateau">Plateau (PSIRS)</option>
+                      <option value="Rivers">Rivers (RIRS)</option>
+                      <option value="Sokoto">Sokoto (SOIRS)</option>
+                      <option value="Taraba">Taraba (TIRS)</option>
+                      <option value="Yobe">Yobe (YIRS)</option>
+                      <option value="Zamfara">Zamfara (ZIRS)</option>
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-555 mb-1">Tax Identification Number (TIN)</label>
+                    <input
+                      type="text"
+                      disabled={!isDraft || isRecalculating}
+                      placeholder="e.g. 1002345678-0001"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-forest-100"
+                      value={modTin}
+                      onChange={(e) => setModTin(e.target.value)}
+                    />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">

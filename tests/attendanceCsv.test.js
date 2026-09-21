@@ -119,7 +119,7 @@ describe('Attendance CSV Upload API Integration Tests', () => {
 
     // Verify employee calculations in the database run
     const updatedRun = res.body.data.run;
-    const emp1Record = updatedRun.employees.find(e => e.employeeId.toString() === employeeId1.toString());
+    const emp1Record = updatedRun.employees.find(e => (e.employeeId._id || e.employeeId).toString() === employeeId1.toString());
     expect(emp1Record.daysAbsent).toBe(3);
     expect(emp1Record.halfDays).toBe(1);
     // 22 working days in June 2026. daysWorked = 22 - 3 - 0.5 = 18.5

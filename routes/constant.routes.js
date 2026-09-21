@@ -15,4 +15,13 @@ router.get('/banks', (req, res) => {
   });
 });
 
+// GET /states -> Returns list of 36 Nigerian States + FCT
+router.get('/states', (req, res) => {
+  const { NIGERIAN_STATES } = require('../config/constants');
+  return res.status(200).json({
+    success: true,
+    data: NIGERIAN_STATES
+  });
+});
+
 module.exports = router;

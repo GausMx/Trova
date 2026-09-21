@@ -6,6 +6,47 @@ import api from '../utils/api';
 import { Link } from 'react-router-dom';
 import { Users, Search, Plus, X, Trash2, CheckCircle2, UserCheck, RotateCcw, AlertTriangle, Layers, Edit2, Lock } from 'lucide-react';
 
+// 36 Nigerian States + FCT (Abuja) for SIRS PAYE Tax Jurisdiction Routing
+const ALL_NIGERIAN_STATES = [
+  { code: 'Abia', label: 'Abia (ABIRS)' },
+  { code: 'Adamawa', label: 'Adamawa (ADIRS)' },
+  { code: 'Akwa Ibom', label: 'Akwa Ibom (AKIRS)' },
+  { code: 'Anambra', label: 'Anambra (AIRS)' },
+  { code: 'Bauchi', label: 'Bauchi (BASIRS)' },
+  { code: 'Bayelsa', label: 'Bayelsa (BYIRS)' },
+  { code: 'Benue', label: 'Benue (BIRS)' },
+  { code: 'Borno', label: 'Borno (BOIRS)' },
+  { code: 'Cross River', label: 'Cross River (CRIRS)' },
+  { code: 'Delta', label: 'Delta (DBIR)' },
+  { code: 'Ebonyi', label: 'Ebonyi (EBSIRS)' },
+  { code: 'Edo', label: 'Edo (EIRS)' },
+  { code: 'Ekiti', label: 'Ekiti (EKIRS)' },
+  { code: 'Enugu', label: 'Enugu (ESIRS)' },
+  { code: 'FCT', label: 'Abuja (FCT-IRS)' },
+  { code: 'Gombe', label: 'Gombe (GROIRS)' },
+  { code: 'Imo', label: 'Imo (IIRS)' },
+  { code: 'Jigawa', label: 'Jigawa (JIRS)' },
+  { code: 'Kaduna', label: 'Kaduna (KADIRS)' },
+  { code: 'Kano', label: 'Kano (KIRS)' },
+  { code: 'Katsina', label: 'Katsina (KATIRS)' },
+  { code: 'Kebbi', label: 'Kebbi (KBIRS)' },
+  { code: 'Kogi', label: 'Kogi (KGIRS)' },
+  { code: 'Kwara', label: 'Kwara (KWIRS)' },
+  { code: 'Lagos', label: 'Lagos (LIRS)' },
+  { code: 'Nasarawa', label: 'Nasarawa (NSBIR)' },
+  { code: 'Niger', label: 'Niger (NGSIRS)' },
+  { code: 'Ogun', label: 'Ogun (OGIRS)' },
+  { code: 'Ondo', label: 'Ondo (ODIRS)' },
+  { code: 'Osun', label: 'Osun (OSIRS)' },
+  { code: 'Oyo', label: 'Oyo (OYIRS)' },
+  { code: 'Plateau', label: 'Plateau (PSIRS)' },
+  { code: 'Rivers', label: 'Rivers (RIRS)' },
+  { code: 'Sokoto', label: 'Sokoto (SOIRS)' },
+  { code: 'Taraba', label: 'Taraba (TIRS)' },
+  { code: 'Yobe', label: 'Yobe (YIRS)' },
+  { code: 'Zamfara', label: 'Zamfara (ZIRS)' }
+];
+
 // Premium loader spinner for button transitions
 const ConcentricSpinner = ({ className = "w-4 h-4" }) => (
   <svg className={`animate-spin ${className}`} viewBox="0 0 24 24" fill="none">
@@ -235,6 +276,7 @@ export default function Employees() {
     setEmpValue('nhisOptIn', !!emp.nhisOptIn);
     setEmpValue('pfaName', emp.pfaName || '');
     setEmpValue('pensionPin', emp.pensionPin || '');
+    setEmpValue('tin', emp.tin || '');
     setEmpValue('annualRentPaid', emp.annualRentPaid || 0);
     setEmpValue('annualLifeInsurance', emp.annualLifeInsurance || 0);
     setIsEmpModalOpen(true);
@@ -796,15 +838,20 @@ export default function Employees() {
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
                       {...registerEmp('stateOfWork')}
                     >
-                      <option value="Lagos">Lagos (LIRS)</option>
-                      <option value="FCT">Abuja (FCT-IRS)</option>
-                      <option value="Rivers">Rivers (RIRS)</option>
-                      <option value="Oyo">Oyo (OYIRS)</option>
-                      <option value="Kano">Kano (KIRS)</option>
-                      <option value="Kaduna">Kaduna (KADIRS)</option>
-                      <option value="Ogun">Ogun (OGIRS)</option>
-                      <option value="Delta">Delta (DIRS)</option>
+                      {ALL_NIGERIAN_STATES.map((s) => (
+                        <option key={s.code} value={s.code}>{s.label}</option>
+                      ))}
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Tax Identification Number (TIN)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 1002345678-0001"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
+                      {...registerEmp('tin')}
+                    />
                   </div>
 
                   <div>
@@ -1076,14 +1123,9 @@ export default function Employees() {
                         className="w-full px-3 py-2 border border-slate-350 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
                         {...registerGrade('stateOfWork')}
                       >
-                        <option value="Lagos">Lagos (LIRS)</option>
-                        <option value="FCT">Abuja (FCT-IRS)</option>
-                        <option value="Rivers">Rivers (RIRS)</option>
-                        <option value="Oyo">Oyo (OYIRS)</option>
-                        <option value="Kano">Kano (KIRS)</option>
-                        <option value="Kaduna">Kaduna (KADIRS)</option>
-                        <option value="Ogun">Ogun (OGIRS)</option>
-                        <option value="Delta">Delta (DIRS)</option>
+                        {ALL_NIGERIAN_STATES.map((s) => (
+                          <option key={s.code} value={s.code}>{s.label}</option>
+                        ))}
                       </select>
                     </div>
 

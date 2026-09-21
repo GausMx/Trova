@@ -42,18 +42,18 @@ describe('Payroll Proration Logic', () => {
     // Prorated NHF: 2.5% of 70,000 basic = 1,750
     expect(result.monthlyNhf).toBe(1750);
 
-    // Progressive tax check
+    // Progressive tax check (2026 tax bands)
     // Annual Gross: 1,680,000
     // Annual Pension: 120,960
     // Annual NHF: 21,000
-    // Annual CRA: flat (max(200k, 1.68m * 1%) + 20% of 1.68m) = 200,000 + 336,000 = 536,000
-    // Taxable Income: 1,680,000 - (120,960 + 21,000 + 536,000) = 1,002,040
-    // PAYE: 300,000 * 7% (21,000) + 300,000 * 11% (33,000) + 402,040 * 15% (60,306) = 114,306
-    // Monthly PAYE: 114,306 / 12 = 9,525.5
-    expect(result.monthlyTax).toBe(9525.5);
+    // Allowable Deductions: 120,960 + 21,000 = 141,960
+    // Taxable Income: 1,680,000 - 141,960 = 1,538,040
+    // PAYE (2026 bands): First 800,000 @ 0%, next 738,040 @ 15% = 110,706 annual tax
+    // Monthly PAYE: 110,706 / 12 = 9,225.5
+    expect(result.monthlyTax).toBe(9225.5);
 
-    // Monthly Net: 140,000 - (10,080 + 1,750 + 9,525.5) = 118,644.5
-    expect(result.monthlyNet).toBe(118644.5);
+    // Monthly Net: 140,000 - (10,080 + 1,750 + 9,225.5) = 118,944.5
+    expect(result.monthlyNet).toBe(118944.5);
   });
 
   test('should trigger minimum tax check correctly on prorated figures', () => {

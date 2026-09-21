@@ -31,7 +31,7 @@ const calculateMonthlyPayroll = (employee, attendance = null) => {
     housingAllowance = 0,
     transportAllowance = 0,
     otherAllowances = 0,
-    nhfOptIn = false,
+    nhfOptIn = employee.nhfOptIn !== undefined ? employee.nhfOptIn : true,
     nhisOptIn = false,
     annualRentPaid = 0,
     annualLifeInsurance = 0,
@@ -106,7 +106,7 @@ const calculateMonthlyPayroll = (employee, attendance = null) => {
   const monthlyPension = monthlyPensionBase * PENSION.EMPLOYEE_RATE;
   const annualPension = monthlyPension * 12;
 
-  // 3. Calculate NHF (2.5% of Basic) - 2026: voluntary for private-sector
+  // 3. Calculate NHF (2.5% of Basic) - 2026: voluntary for private-sector, defaults to true if omitted
   const monthlyNhf = nhfOptIn ? (basic * NHF.EMPLOYEE_RATE) : 0;
   const annualNhf = monthlyNhf * 12;
 
@@ -135,6 +135,12 @@ const calculateMonthlyPayroll = (employee, attendance = null) => {
     const taxableInThisBand = Math.min(remainingTaxable, band.limit);
     annualTax += taxableInThisBand * band.rate;
     remainingTaxable -= taxableInThisBand;
+  }
+
+  // 9. Enforce Minimum Tax Check (1% of annual gross income)
+  const minimumTax = annualGross * 0.01;
+  if (annualTax < minimumTax) {
+    annualTax = minimumTax;
   }
 
   // 9. Convert to Monthly values
