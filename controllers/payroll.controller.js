@@ -202,7 +202,14 @@ exports.computePayroll = catchAsync(async (req, res) => {
   }
 
   const populatedRun = await PayrollRun.findById(run._id).populate('employees.employeeId');
-  return sendSuccess(res, `Payroll run calculated successfully as draft for ${month}/${year}`, { run: populatedRun }, 201);
+  const missingTinEmployees = activeEmployees.filter(e => !e.tin || !e.tin.trim()).map(e => e.staffId || e.fullName);
+  const responseData = { run: populatedRun };
+
+  if (missingTinEmployees.length > 0) {
+    responseData.tinWarning = `NTA 2026 mandates a Tax Identification Number (TIN) for statutory PAYE tax filing. ${missingTinEmployees.length} active employee(s) (${missingTinEmployees.slice(0, 5).join(', ')}${missingTinEmployees.length > 5 ? '...' : ''}) are missing a TIN.`;
+  }
+
+  return sendSuccess(res, `Payroll run calculated successfully as draft for ${month}/${year}`, responseData, 201);
 });
 
 /**

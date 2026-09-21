@@ -100,7 +100,8 @@ const calculateMonthlyPayroll = (employee, attendance = null) => {
     };
   }
 
-  // 2. Calculate Pension (8% of Basic + Housing + Transport)
+  // 2. Calculate Pension (8% of Emoluments: Basic + Housing + Transport per PRA 2014)
+  // Strictly excludes non-pensionable allowances (otherAllowances)
   const monthlyPensionBase = basic + housing + transport;
   const monthlyPension = monthlyPensionBase * PENSION.EMPLOYEE_RATE;
   const annualPension = monthlyPension * 12;
@@ -144,7 +145,7 @@ const calculateMonthlyPayroll = (employee, attendance = null) => {
   const employerPensionContribution = monthlyPensionBase * PENSION.EMPLOYER_RATE;
   const employerNhisContribution = nhisApplies ? (basic * 0.10) : 0;
   const nsitfContribution = monthlyGross * 0.01;
-  const itfContribution = (companyEmployeeCount >= 5 || annualGross > 50000) ? (monthlyGross * 0.01) : 0;
+  const itfContribution = (companyEmployeeCount >= 5 || annualGross >= 50000000) ? (monthlyGross * 0.01) : 0;
 
   // Return rounded calculations
   return {

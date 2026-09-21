@@ -4,7 +4,8 @@ import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import api from '../utils/api';
-import { CreditCard, Calendar, Plus, ChevronRight, CheckCircle, Wallet, Download, Upload, Save, AlertCircle, FileText, CheckCircle2, Lock } from 'lucide-react';
+import DisbursementTab from './DisbursementTab';
+import { CreditCard, Calendar, Plus, ChevronRight, CheckCircle, Wallet, Download, Upload, Save, AlertCircle, FileText, CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
 
 // Premium loader spinners for premium UI interactions
 const ConcentricSpinner = ({ className = "w-4 h-4" }) => (
@@ -711,6 +712,21 @@ export default function Payroll() {
                     <span>Compensation Breakdown</span>
                   </span>
                 </button>
+
+                <button
+                  onClick={() => setDetailsTab('disbursements')}
+                  className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${
+                    detailsTab === 'disbursements'
+                      ? 'border-forest-800 text-forest-800 font-bold'
+                      : 'border-transparent text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  <span className="flex items-center space-x-1.5">
+                    <ShieldCheck className="w-4 h-4 text-forest-700" />
+                    <span>Disbursements / Payouts (Remita API)</span>
+                  </span>
+                </button>
+
                 {hasFeature('attendance_proration') && (
                   <button
                     onClick={() => setDetailsTab('attendance')}
@@ -812,6 +828,14 @@ export default function Payroll() {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {/* Sub-tab: Disbursements / Payouts (Remita API) */}
+              {detailsTab === 'disbursements' && (
+                <DisbursementTab
+                  payrollRun={selectedRunDetails}
+                  isApprovedOrPaid={selectedRunDetails.status === 'approved' || selectedRunDetails.status === 'paid'}
+                />
               )}
 
               {/* Sub-tab: Attendance Sheet & Proration */}

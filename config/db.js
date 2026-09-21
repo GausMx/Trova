@@ -14,11 +14,14 @@ if (process.env.NODE_ENV !== 'production') {
  * Connects to MongoDB database using environment configurations.
  */
 const connectDB = async () => {
-  const connUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/trova';
+  let connUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/trova';
+  if (process.env.NODE_ENV === 'test') {
+    connUri = process.env.TEST_MONGODB_URI || 'mongodb://127.0.0.1:27017/trova_test_suite';
+  }
   
   try {
     const conn = await mongoose.connect(connUri);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    console.log(`MongoDB Connected: ${conn.connection.host} (${conn.connection.name})`);
   } catch (error) {
     console.error(`Error connecting to MongoDB: ${error.message}`);
     // Retry connection after 5 seconds

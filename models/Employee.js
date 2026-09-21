@@ -88,6 +88,10 @@ const EmployeeSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    tin: {
+      type: String,
+      trim: true
+    },
     annualRentPaid: {
       type: Number,
       default: 0

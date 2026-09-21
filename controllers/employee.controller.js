@@ -47,6 +47,7 @@ exports.createEmployee = catchAsync(async (req, res) => {
     nhisOptIn,
     pfaName,
     pensionPin,
+    tin,
     annualRentPaid,
     annualLifeInsurance
   } = req.body;
@@ -144,6 +145,7 @@ exports.createEmployee = catchAsync(async (req, res) => {
     nhisOptIn: finalNhisOptIn === true || finalNhisOptIn === 'true',
     pfaName: finalPfaName || '',
     pensionPin: finalPensionPin || '',
+    tin: tin || '',
     annualRentPaid: finalAnnualRentPaid ? Number(finalAnnualRentPaid) : 0,
     annualLifeInsurance: finalAnnualLifeInsurance ? Number(finalAnnualLifeInsurance) : 0
   });
@@ -261,6 +263,7 @@ exports.updateEmployee = catchAsync(async (req, res) => {
     nhisOptIn,
     pfaName,
     pensionPin,
+    tin,
     annualRentPaid,
     annualLifeInsurance
   } = req.body;
@@ -362,6 +365,7 @@ exports.updateEmployee = catchAsync(async (req, res) => {
   if (nhisOptIn !== undefined) employee.nhisOptIn = nhisOptIn === true || nhisOptIn === 'true';
   if (pfaName !== undefined) employee.pfaName = pfaName;
   if (pensionPin !== undefined) employee.pensionPin = pensionPin;
+  if (tin !== undefined) employee.tin = tin;
   if (annualRentPaid !== undefined) employee.annualRentPaid = annualRentPaid ? Number(annualRentPaid) : 0;
   if (annualLifeInsurance !== undefined) employee.annualLifeInsurance = annualLifeInsurance ? Number(annualLifeInsurance) : 0;
 
