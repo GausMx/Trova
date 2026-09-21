@@ -10,7 +10,7 @@ const EmployeeSchema = new mongoose.Schema(
     },
     staffId: {
       type: String,
-      unique: true
+      trim: true
     },
     firstName: {
       type: String,
@@ -125,12 +125,15 @@ const EmployeeSchema = new mongoose.Schema(
   }
 );
 
+// Compound index: staffId must be unique PER COMPANY (multi-tenant scope)
+EmployeeSchema.index({ companyId: 1, staffId: 1 }, { unique: true });
+
 // Virtual for fullName
 EmployeeSchema.virtual('fullName').get(function () {
   return `${this.firstName} ${this.lastName}`;
 });
 
-// Pre-save hook to generate Staff ID
+// Pre-save hook to generate Staff ID (scoped per company tenant)
 EmployeeSchema.pre('save', async function (next) {
   if (this.isNew && !this.staffId) {
     try {
@@ -144,11 +147,20 @@ EmployeeSchema.pre('save', async function (next) {
       const cleanName = company.name.replace(/[^a-zA-Z]/g, '').toUpperCase();
       const prefix = (cleanName.substring(0, 3) || 'EMP').padEnd(3, 'X');
 
-      // Get count of employees for sequence
+      // Get count of employees for initial sequence candidate within THIS company
       const count = await mongoose.model('Employee').countDocuments({ companyId: this.companyId });
-      const sequenceNum = String(count + 1).padStart(3, '0');
+      let seqInt = count + 1;
+      let candidateId = `${prefix}-${String(seqInt).padStart(3, '0')}`;
 
-      this.staffId = `${prefix}-${sequenceNum}`;
+      // Check for uniqueness WITHIN THIS COMPANY
+      let existing = await mongoose.model('Employee').findOne({ companyId: this.companyId, staffId: candidateId });
+      while (existing) {
+        seqInt += 1;
+        candidateId = `${prefix}-${String(seqInt).padStart(3, '0')}`;
+        existing = await mongoose.model('Employee').findOne({ companyId: this.companyId, staffId: candidateId });
+      }
+
+      this.staffId = candidateId;
       next();
     } catch (error) {
       next(error);

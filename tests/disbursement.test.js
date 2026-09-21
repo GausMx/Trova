@@ -22,7 +22,7 @@ describe('Disbursements & Remita RRR Workflow API Tests', () => {
 
   beforeAll(async () => {
     if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/trova_test_disbursements');
+      await mongoose.connect('mongodb://127.0.0.1:27017/trova_test_disbursements');
     }
 
     await User.deleteMany({});
