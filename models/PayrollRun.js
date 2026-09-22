@@ -80,6 +80,24 @@ const PayrollRunSchema = new mongoose.Schema(
       itf: { type: Number, default: 0 },
       net: { type: Number, default: 0 }
     },
+    PspBatchToken: {
+      type: String,
+      default: null
+    },
+    PspValidationStatus: {
+      type: String,
+      enum: ['PENDING', 'VALIDATED', 'FAILED'],
+      default: 'PENDING'
+    },
+    PspValidationErrors: [
+      {
+        staffId: String,
+        name: String,
+        rsaPin: String,
+        pfaCode: String,
+        error: String
+      }
+    ],
     employees: [PayrollEmployeeSchema]
   },
   {

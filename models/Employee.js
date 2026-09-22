@@ -89,6 +89,11 @@ const EmployeeSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    pfaCode: {
+      type: String,
+      trim: true,
+      default: ''
+    },
     pensionPin: {
       type: String,
       trim: true

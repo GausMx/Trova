@@ -42,9 +42,21 @@ const ALL_NIGERIAN_STATES = [
   { code: 'Plateau', label: 'Plateau (PSIRS)' },
   { code: 'Rivers', label: 'Rivers (RIRS)' },
   { code: 'Sokoto', label: 'Sokoto (SOIRS)' },
-  { code: 'Taraba', label: 'Taraba (TIRS)' },
-  { code: 'Yobe', label: 'Yobe (YIRS)' },
   { code: 'Zamfara', label: 'Zamfara (ZIRS)' }
+];
+
+// PenCom Registered Pension Fund Administrators (PFAs)
+const ALL_PFAS = [
+  { name: 'Stanbic IBTC Pension Managers', code: '021' },
+  { name: 'Leadway Pensure PFA', code: '001' },
+  { name: 'ARM Pension Managers', code: '003' },
+  { name: 'Premium Pension Limited', code: '004' },
+  { name: 'FCMB Pensions Limited', code: '005' },
+  { name: 'Trustfund Pensions Limited', code: '006' },
+  { name: 'Access Pensions', code: '007' },
+  { name: 'Tangerine APT Pensions', code: '008' },
+  { name: 'NLPC PFA Limited', code: '009' },
+  { name: 'Veritas Glanvills Pensions', code: '010' }
 ];
 
 // Premium loader spinner for button transitions
@@ -858,10 +870,16 @@ export default function Employees() {
                     <label className="block text-xs font-semibold text-slate-500 mb-1">Pension PFA Name</label>
                     <input
                       type="text"
-                      placeholder="e.g. Stanbic IBTC Pension"
+                      list="pfa-list"
+                      placeholder="Select or type PFA name"
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-forest-100 focus:border-forest-700"
                       {...registerEmp('pfaName')}
                     />
+                    <datalist id="pfa-list">
+                      {ALL_PFAS.map((pfa) => (
+                        <option key={pfa.code} value={pfa.name} />
+                      ))}
+                    </datalist>
                   </div>
 
                   <div>

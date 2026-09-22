@@ -17,6 +17,12 @@ router.get(
 );
 
 router.post(
+  '/payroll/:payrollRunId/validate-pension',
+  restrictTo('owner', 'admin', 'finance'),
+  disbursementController.validatePensionPssp
+);
+
+router.post(
   '/payroll/:payrollRunId/generate-rrr',
   restrictTo('owner', 'admin', 'finance'),
   disbursementController.generateRRR
@@ -29,6 +35,12 @@ router.get(
 );
 
 // Compliance Schedule Auto-Generator Downloads
+router.get(
+  '/payroll/:payrollRunId/schedules/paye',
+  restrictTo('owner', 'admin', 'hr', 'finance'),
+  disbursementController.downloadStatePayeSchedule
+);
+
 router.get(
   '/payroll/:payrollRunId/schedules/taxpro-max',
   restrictTo('owner', 'admin', 'hr', 'finance'),

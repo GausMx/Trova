@@ -91,4 +91,8 @@ router.get('/:id/payment-file/csv', restrictTo('owner', 'admin', 'finance'), che
 // GET /:id/payment-file/excel -> Download Excel payment file (Owner, Admin, and Finance only)
 router.get('/:id/payment-file/excel', restrictTo('owner', 'admin', 'finance'), checkFeatureAccess('bulk_payment_file'), payrollController.getPaymentFileExcel);
 
+// GET /:id/schedules/paye -> Download State-Specific PAYE Tax CSV Schedule
+const disbursementController = require('../controllers/disbursement.controller');
+router.get('/:id/schedules/paye', restrictTo('owner', 'admin', 'hr', 'finance'), disbursementController.downloadStatePayeSchedule);
+
 module.exports = router;

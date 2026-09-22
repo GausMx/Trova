@@ -179,8 +179,80 @@ const generateNhfCsv = (payrollRun) => {
   };
 };
 
+/**
+ * Generates State-Specific PAYE Tax Schedule in CSV format for a specific State IRS (e.g., LIRS, OGIRS, FCT-IRS).
+ * Mandatory fields: Employee Full Name, Employee TIN, Gross Pay, Allowable Deductions, Taxable Pay, Monthly PAYE Tax.
+ */
+const generateStatePayeCsv = (payrollRun, stateName = 'Lagos') => {
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const periodLabel = `${monthNames[payrollRun.month - 1]} ${payrollRun.year}`;
+  const targetState = (stateName || 'Lagos').trim();
+
+  const headers = [
+    'Staff ID',
+    'Employee Full Name',
+    'Employee TIN',
+    'State of Residence',
+    'Gross Pay (NGN)',
+    'Allowable Deductions (NGN)',
+    'Taxable Pay (NGN)',
+    'Monthly PAYE Tax (NGN)',
+    'Remittance Period'
+  ];
+
+  const filteredEmployees = (payrollRun.employees || []).filter((pe) => {
+    const emp = pe.employeeId || {};
+    const state = emp.stateOfWork || 'Lagos';
+    return state.toLowerCase().trim() === targetState.toLowerCase();
+  });
+
+  const rows = filteredEmployees.map((pe) => {
+    const emp = pe.employeeId || {};
+    const gross = pe.proratedGross || pe.grossSalary || 0;
+    const pension = pe.pensionDeduction || 0;
+    const nhf = pe.nhfDeduction || 0;
+    const nhis = pe.nhisDeduction || 0;
+    
+    // Monthly rent relief (20% of rent capped at N500k annual = N41,666.67/mo)
+    const annualRent = emp.annualRentPaid || 0;
+    const monthlyRentRelief = Math.min(annualRent * 0.20, 500000) / 12;
+    const monthlyLifeInsurance = (emp.annualLifeInsurance || 0) / 12;
+    
+    const allowableDeductions = pension + nhf + nhis + monthlyRentRelief + monthlyLifeInsurance;
+    const taxablePay = Math.max(0, gross - allowableDeductions);
+    const tax = pe.taxDeduction || 0;
+
+    return [
+      pe.staffId || emp.staffId || '',
+      pe.name || emp.fullName || '',
+      emp.tin || 'N/A',
+      emp.stateOfWork || targetState,
+      gross.toFixed(2),
+      allowableDeductions.toFixed(2),
+      taxablePay.toFixed(2),
+      tax.toFixed(2),
+      periodLabel
+    ];
+  });
+
+  const csvContent = stringify([headers, ...rows]);
+  const cleanStateName = targetState.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+
+  return {
+    filename: `paye_schedule_${cleanStateName}_${payrollRun.month}_${payrollRun.year}.csv`,
+    contentType: 'text/csv',
+    content: csvContent,
+    stateName: targetState,
+    recordCount: filteredEmployees.length
+  };
+};
+
 module.exports = {
   generateTaxProMaxCsv,
+  generateStatePayeCsv,
   generatePenComExcel,
   generateNsitfCsv,
   generateNhfCsv

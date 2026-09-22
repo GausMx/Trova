@@ -4,11 +4,12 @@ const catchAsync = require('../utils/catchAsync');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { aggregatePayrollRouting } = require('../config/billerRegistry');
 const remitaService = require('../utils/remitaService');
+const pensionPsspService = require('../utils/pensionPsspService');
 const { PAYROLL_STATUS } = require('../config/constants');
 
 /**
  * GET /api/disbursements/payroll/:payrollRunId/summary
- * Returns total cash outflow breakdown summary and multi-agency routing metadata.
+ * Returns total cash outflow breakdown summary, multi-state PAYE tax routing, and PenCom PSSP metadata.
  */
 exports.getDisbursementSummary = catchAsync(async (req, res) => {
   const run = await PayrollRun.findOne({
@@ -34,7 +35,10 @@ exports.getDisbursementSummary = catchAsync(async (req, res) => {
       id: run._id,
       month: run.month,
       year: run.year,
-      status: run.status
+      status: run.status,
+      pspBatchToken: run.PspBatchToken || null,
+      pspValidationStatus: run.PspValidationStatus || 'PENDING',
+      pspValidationErrors: run.PspValidationErrors || []
     },
     summary: aggregation.summary,
     routing: aggregation.routing,
@@ -43,11 +47,61 @@ exports.getDisbursementSummary = catchAsync(async (req, res) => {
 });
 
 /**
+ * POST /api/disbursements/payroll/:payrollRunId/validate-pension
+ * Validates PenCom pension schedule via PenCom PSSP API and retrieves batch token.
+ */
+exports.validatePensionPssp = catchAsync(async (req, res) => {
+  const run = await PayrollRun.findOne({
+    _id: req.params.payrollRunId,
+    companyId: req.companyId
+  }).populate('employees.employeeId');
+
+  if (!run) {
+    return sendError(res, 'Payroll run not found', 404);
+  }
+
+  const result = await pensionPsspService.submitPensionSchedule(run, req.company);
+
+  run.PspBatchToken = result.batchToken;
+  run.PspValidationStatus = result.validationStatus;
+  run.PspValidationErrors = result.errors || [];
+  await run.save();
+
+  if (!result.success) {
+    return res.status(400).json({
+      success: false,
+      message: 'PenCom PSSP validation failed due to invalid RSA PINs or missing PFA codes.',
+      pspValidationStatus: result.validationStatus,
+      errors: result.errors || [],
+      payrollRun: {
+        id: run._id,
+        pspValidationStatus: run.PspValidationStatus,
+        pspBatchToken: run.PspBatchToken,
+        pspValidationErrors: run.PspValidationErrors
+      }
+    });
+  }
+
+  return sendSuccess(res, 'PenCom PSSP pension schedule validated successfully', {
+    pspBatchToken: result.batchToken,
+    pspValidationStatus: result.validationStatus,
+    errors: [],
+    fallbackMode: result.fallbackMode || false,
+    payrollRun: {
+      id: run._id,
+      pspValidationStatus: run.PspValidationStatus,
+      pspBatchToken: run.PspBatchToken
+    }
+  });
+});
+
+/**
  * POST /api/disbursements/payroll/:payrollRunId/generate-rrr
  * Generates Remita Retrieval Reference (RRR) codes for Master Unified or Split RRR payment modes.
+ * Validates State Bill References for each active state IRS and PenCom PSSP batch token.
  */
 exports.generateRRR = catchAsync(async (req, res) => {
-  const { paymentMode = 'unified', splitCategories = ['salaries', 'statutory_unified'] } = req.body;
+  const { paymentMode = 'unified', stateBillReferences = {} } = req.body;
 
   const run = await PayrollRun.findOne({
     _id: req.params.payrollRunId,
@@ -64,6 +118,44 @@ exports.generateRRR = catchAsync(async (req, res) => {
 
   const aggregation = aggregatePayrollRouting(run.employees);
   const summary = aggregation.summary;
+  const payeByState = aggregation.routing.payeByState || [];
+
+  // Validation: Check that every state with PAYE tax due has a provided state_bill_reference
+  const missingStateReferences = [];
+  for (const stateItem of payeByState) {
+    if (stateItem.totalTax > 0) {
+      const ref = stateBillReferences[stateItem.state] || (stateBillReferences.get && stateBillReferences.get(stateItem.state));
+      if (!ref || !ref.trim()) {
+        missingStateReferences.push(stateItem.state);
+      }
+    }
+  }
+
+  if (missingStateReferences.length > 0) {
+    return sendError(
+      res,
+      `State Bill Reference (eTax / DIN) is required for state(s): ${missingStateReferences.join(', ')} before generating Master RRR.`,
+      400
+    );
+  }
+
+  // Auto-validate pension with PSSP if not already validated and pension total > 0
+  if (summary.pension > 0 && run.PspValidationStatus !== 'VALIDATED') {
+    const psspResult = await pensionPsspService.submitPensionSchedule(run, req.company);
+    run.PspBatchToken = psspResult.batchToken;
+    run.PspValidationStatus = psspResult.validationStatus;
+    run.PspValidationErrors = psspResult.errors || [];
+    await run.save();
+
+    if (!psspResult.success) {
+      return sendError(
+        res,
+        'PenCom PSSP validation failed for pension schedule. Fix invalid RSA PINs/PFAs before generating RRR.',
+        400,
+        { errors: psspResult.errors }
+      );
+    }
+  }
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -72,6 +164,24 @@ exports.generateRRR = catchAsync(async (req, res) => {
   const periodLabel = `${monthNames[run.month - 1]} ${run.year}`;
 
   const generatedRrrs = [];
+
+  // Construct line items for Remita Multi-Biller Payload
+  const lineItems = [
+    ...payeByState.map((s) => ({
+      billerId: s.biller?.billerId || 'STATE-IRS',
+      beneficiaryName: s.biller?.name || `${s.state} State IRS`,
+      amount: s.totalTax,
+      state: s.state
+    })),
+    ...(aggregation.routing.pensionByPfa || []).map((p) => ({
+      billerId: p.billerId || 'PFA-PFC',
+      beneficiaryName: `${p.pfaName} (${p.pfcName})`,
+      accountNumber: p.pfcAccount,
+      pfcBankCode: p.pfcBankCode,
+      amount: p.totalPension,
+      pfaName: p.pfaName
+    }))
+  ];
 
   if (paymentMode === 'unified') {
     // Option A: Master Unified RRR (Salaries + Statutory Remittances)
@@ -82,20 +192,25 @@ exports.generateRRR = catchAsync(async (req, res) => {
       category: 'master',
       description: `Trova Master Payroll Payment - ${req.company.name} (${periodLabel})`,
       payerName: req.company.name,
-      payerEmail: req.user.email
+      payerEmail: req.user.email,
+      lineItems,
+      stateBillReferences,
+      pspBatchToken: run.PspBatchToken
     });
 
     generatedRrrs.push({
       rrr: result.rrr,
       category: 'master',
-      description: `Master RRR (Salaries + All Statutory Remittances)`,
+      description: `Master RRR (Salaries + Multi-State PAYE + PenCom Pension + Statutory)`,
       amount: summary.totalOutflow,
       status: 'generated',
       generatedAt: new Date(),
       beneficiaryDetails: {
         totalSalaries: summary.netSalaries,
         totalStatutory: summary.totalStatutory,
-        paymentUrl: result.paymentUrl
+        paymentUrl: result.paymentUrl,
+        pspBatchToken: run.PspBatchToken,
+        stateBillReferences
       }
     });
   } else {
@@ -132,9 +247,12 @@ exports.generateRRR = catchAsync(async (req, res) => {
         requestId: statRequestId,
         amount: summary.totalStatutory,
         category: 'statutory_unified',
-        description: `Statutory Remittances (PAYE, Pension, NSITF) - ${req.company.name} (${periodLabel})`,
+        description: `Statutory Remittances (Multi-State PAYE, PenCom, NSITF) - ${req.company.name} (${periodLabel})`,
         payerName: req.company.name,
-        payerEmail: req.user.email
+        payerEmail: req.user.email,
+        lineItems,
+        stateBillReferences,
+        pspBatchToken: run.PspBatchToken
       });
 
       generatedRrrs.push({
@@ -148,7 +266,9 @@ exports.generateRRR = catchAsync(async (req, res) => {
           payeTax: summary.payeTax,
           pension: summary.pension,
           nsitf: summary.nsitf,
-          paymentUrl: statResult.paymentUrl
+          paymentUrl: statResult.paymentUrl,
+          pspBatchToken: run.PspBatchToken,
+          stateBillReferences
         }
       });
     }
@@ -167,6 +287,8 @@ exports.generateRRR = catchAsync(async (req, res) => {
     disbursement.totalSalaries = summary.netSalaries;
     disbursement.totalStatutory = summary.totalStatutory;
     disbursement.breakdown = aggregation;
+    disbursement.stateBillReferences = stateBillReferences;
+    disbursement.pspBatchToken = run.PspBatchToken;
     disbursement.status = 'pending';
     await disbursement.save();
   } else {
@@ -180,6 +302,8 @@ exports.generateRRR = catchAsync(async (req, res) => {
       totalStatutory: summary.totalStatutory,
       rrrs: generatedRrrs,
       breakdown: aggregation,
+      stateBillReferences,
+      pspBatchToken: run.PspBatchToken,
       createdBy: req.user._id
     });
   }
@@ -204,6 +328,29 @@ exports.getDisbursementStatus = catchAsync(async (req, res) => {
   }
 
   return sendSuccess(res, 'Disbursement RRR status retrieved successfully', { disbursement });
+});
+
+/**
+ * GET /api/disbursements/payroll/:payrollRunId/schedules/paye
+ * Downloads State-Specific PAYE Tax CSV Schedule for a given state (e.g. Lagos, Ogun, FCT).
+ */
+exports.downloadStatePayeSchedule = catchAsync(async (req, res) => {
+  const run = await PayrollRun.findOne({
+    _id: req.params.payrollRunId,
+    companyId: req.companyId
+  }).populate('employees.employeeId');
+
+  if (!run) {
+    return sendError(res, 'Payroll run not found', 404);
+  }
+
+  const { generateStatePayeCsv } = require('../utils/scheduleGenerator');
+  const targetState = req.query.state || req.params.state || 'Lagos';
+  const file = generateStatePayeCsv(run, targetState);
+
+  res.setHeader('Content-Type', file.contentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+  return res.status(200).send(file.content);
 });
 
 /**
@@ -381,5 +528,3 @@ exports.processRemitaWebhook = catchAsync(async (req, res) => {
     disbursementStatus: disbursement.status
   });
 });
-
-

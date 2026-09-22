@@ -47,9 +47,22 @@ class RemitaService {
    * Requests a Remita Retrieval Reference (RRR) from Remita.
    * Falls back to a realistic mock RRR generator in sandbox/test environment if live endpoint is unreachable.
    */
-  async requestRRR({ requestId, amount, category, description, payerName, payerEmail, payerPhone, lineItems = [] }) {
+  async requestRRR({ requestId, amount, category, description, payerName, payerEmail, payerPhone, lineItems = [], stateBillReferences = {}, pspBatchToken = null }) {
     const formattedAmount = Number(amount).toFixed(2);
     const apiHash = this.generateRequestHash(requestId, formattedAmount);
+
+    const formattedLineItems = lineItems.map((item) => ({
+      lineItemsId: item.lineItemsId || item.billerId || `ITEM-${Date.now()}`,
+      beneficiaryName: item.beneficiaryName || item.name || 'Statutory Beneficiary',
+      beneficiaryAccount: item.beneficiaryAccount || item.accountNumber || '0000000000',
+      bankCode: item.bankCode || item.pfcBankCode || '000',
+      beneficiaryAmount: Number(item.amount || item.totalTax || item.totalPension || 0).toFixed(2),
+      deductFeeFrom: item.deductFeeFrom || '1',
+      customFields: [
+        ...(item.state ? [{ name: 'State Bill Reference (DIN/eTax)', value: stateBillReferences[item.state] || '' }] : []),
+        ...(item.pfaName || pspBatchToken ? [{ name: 'PenCom PSSP Batch Token', value: pspBatchToken || '' }] : [])
+      ]
+    }));
 
     const payload = {
       merchantId: this.merchantId,
@@ -60,10 +73,10 @@ class RemitaService {
       payerEmail: payerEmail || 'finance@trova.ng',
       payerPhone: payerPhone || '08000000000',
       description: description || `Trova Disbursement - ${category.toUpperCase()}`,
-      lineItems
+      lineItems: formattedLineItems
     };
 
-    // If sandbox / test environment, generate valid 12-digit mock RRR
+    // If sandbox / test environment or REMITA_LIVE_ENABLED not set, generate valid 12-digit mock RRR
     if (process.env.NODE_ENV === 'test' || !process.env.REMITA_LIVE_ENABLED) {
       const mockRrr = '28' + Math.floor(1000000000 + Math.random() * 9000000000).toString();
       return {
@@ -74,7 +87,8 @@ class RemitaService {
         status: 'generated',
         paymentUrl: `https://demo.remita.net/remita/onepage/biller/${mockRrr}/payment.spa`,
         merchantId: this.merchantId,
-        hash: apiHash
+        hash: apiHash,
+        lineItemsCount: formattedLineItems.length
       };
     }
 

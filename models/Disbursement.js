@@ -79,6 +79,15 @@ const DisbursementSchema = new mongoose.Schema(
     breakdown: {
       type: mongoose.Schema.Types.Mixed
     },
+    stateBillReferences: {
+      type: Map,
+      of: String,
+      default: {}
+    },
+    pspBatchToken: {
+      type: String,
+      default: null
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'

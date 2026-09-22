@@ -128,7 +128,10 @@ describe('Disbursements & Remita RRR Workflow API Tests', () => {
     const res = await request(app)
       .post(`/api/disbursements/payroll/${payrollRunId}/generate-rrr`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ paymentMode: 'unified' });
+      .send({
+        paymentMode: 'unified',
+        stateBillReferences: { Lagos: 'LIRS-100', Ogun: 'OGIRS-200' }
+      });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -145,7 +148,10 @@ describe('Disbursements & Remita RRR Workflow API Tests', () => {
     const res = await request(app)
       .post(`/api/disbursements/payroll/${payrollRunId}/generate-rrr`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ paymentMode: 'split' });
+      .send({
+        paymentMode: 'split',
+        stateBillReferences: { Lagos: 'LIRS-100', Ogun: 'OGIRS-200' }
+      });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);

@@ -48,63 +48,73 @@ const STATE_IRS_BILLERS = {
   'Zamfara': { billerId: '100001036', name: 'Zamfara State Board of Internal Revenue' }
 };
 
-// Pension Fund Administrators (PFAs) mapped to Pension Fund Custodians (PFCs)
+// Pension Fund Administrators (PFAs) mapped to Pension Fund Custodians (PFCs) & PenCom PFA Codes
 const PFA_REGISTRY = {
   'Stanbic IBTC Pension Managers': {
+    pfaCode: '021',
     billerId: 'PFA-001',
     pfcName: 'First Pension Custodian Nigeria Limited',
     pfcAccount: '2001122334',
     pfcBankCode: '011'
   },
   'Leadway Pensure PFA': {
+    pfaCode: '001',
     billerId: 'PFA-002',
     pfcName: 'Zenith Pensions Custodian Limited',
     pfcAccount: '1012233445',
     pfcBankCode: '057'
   },
   'ARM Pension Managers': {
+    pfaCode: '003',
     billerId: 'PFA-003',
     pfcName: 'UBA Pension Custodian Limited',
     pfcAccount: '3003344556',
     pfcBankCode: '033'
   },
   'Premium Pension Limited': {
+    pfaCode: '004',
     billerId: 'PFA-004',
     pfcName: 'First Pension Custodian Nigeria Limited',
     pfcAccount: '2004455667',
     pfcBankCode: '011'
   },
   'FCMB Pensions Limited': {
+    pfaCode: '005',
     billerId: 'PFA-005',
     pfcName: 'Zenith Pensions Custodian Limited',
     pfcAccount: '1015566778',
     pfcBankCode: '057'
   },
   'Trustfund Pensions Limited': {
+    pfaCode: '006',
     billerId: 'PFA-006',
     pfcName: 'UBA Pension Custodian Limited',
     pfcAccount: '3006677889',
     pfcBankCode: '033'
   },
   'Access Pensions': {
+    pfaCode: '007',
     billerId: 'PFA-007',
     pfcName: 'First Pension Custodian Nigeria Limited',
     pfcAccount: '2007788990',
     pfcBankCode: '011'
   },
   'Tangerine APT Pensions': {
+    pfaCode: '008',
     billerId: 'PFA-008',
     pfcName: 'Zenith Pensions Custodian Limited',
     pfcAccount: '1018899001',
     pfcBankCode: '057'
   },
   'NLPC PFA Limited': {
+    pfaCode: '009',
     billerId: 'PFA-009',
     pfcName: 'UBA Pension Custodian Limited',
     pfcAccount: '3009900112',
     pfcBankCode: '033'
   },
   'Veritas Glanvills Pensions': {
+    pfaCode: '010',
     billerId: 'PFA-010',
     pfcName: 'First Pension Custodian Nigeria Limited',
     pfcAccount: '2001112233',
@@ -299,11 +309,19 @@ const aggregatePayrollRouting = (payrollRunEmployees = []) => {
   };
 };
 
+const getPfaCode = (pfaName, pfaCode) => {
+  if (pfaCode && pfaCode.trim()) return pfaCode.trim();
+  if (!pfaName) return '021';
+  const details = getPfaCustodianDetails(pfaName);
+  return details ? details.pfaCode || '021' : '021';
+};
+
 module.exports = {
   STATE_IRS_BILLERS,
   PFA_REGISTRY,
   STATUTORY_AGENCIES,
   getStateBillerId,
   getPfaCustodianDetails,
+  getPfaCode,
   aggregatePayrollRouting
 };
