@@ -137,6 +137,8 @@ const EmployeeSchema = new mongoose.Schema(
 
 // Compound index: staffId must be unique PER COMPANY (multi-tenant scope)
 EmployeeSchema.index({ companyId: 1, staffId: 1 }, { unique: true });
+// Performance index: High-frequency queries filtering active employees by company tenant
+EmployeeSchema.index({ companyId: 1, status: 1 });
 
 // Virtual for fullName
 EmployeeSchema.virtual('fullName').get(function () {

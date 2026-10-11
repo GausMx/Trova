@@ -67,6 +67,9 @@ router.post('/compute', restrictTo('owner', 'admin', 'finance'), checkSubscripti
 // GET /:id -> Get payroll run details with full employee sub-records
 router.get('/:id', restrictTo('owner', 'admin', 'hr', 'finance'), payrollController.getPayrollRunById);
 
+// GET /:id/reconciliation -> Get post-payroll reconciliation summary, numbers check, and audit trail
+router.get('/:id/reconciliation', restrictTo('owner', 'admin', 'hr', 'finance'), payrollController.getReconciliationSummary);
+
 // POST /:id/approve -> Approve draft payroll (Owner, Admin, and Finance only)
 router.post('/:id/approve', restrictTo('owner', 'admin', 'finance'), checkSubscriptionLimits, payrollController.approvePayroll);
 

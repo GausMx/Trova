@@ -28,6 +28,12 @@ router.post(
   disbursementController.generateRRR
 );
 
+router.post(
+  '/payroll/:payrollRunId/simulate-payment',
+  restrictTo('owner', 'admin', 'finance'),
+  disbursementController.simulatePaymentConfirmation
+);
+
 router.get(
   '/payroll/:payrollRunId/status',
   restrictTo('owner', 'admin', 'hr', 'finance'),

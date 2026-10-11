@@ -44,5 +44,7 @@ const ComplianceRecordSchema = new mongoose.Schema(
 
 // Ensure a company can only have one compliance record per obligation and period
 ComplianceRecordSchema.index({ companyId: 1, obligationId: 1, month: 1, year: 1 }, { unique: true });
+// Performance index: High-frequency queries fetching company records by calendar cycle (month and year)
+ComplianceRecordSchema.index({ companyId: 1, month: 1, year: 1 });
 
 module.exports = mongoose.model('ComplianceRecord', ComplianceRecordSchema);

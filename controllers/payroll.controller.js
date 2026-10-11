@@ -153,14 +153,35 @@ exports.computePayroll = catchAsync(async (req, res) => {
 
   let run;
 
+  const operatorName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+  const auditMsg = existingRun
+    ? `Recalculated payroll for ${month}/${year} across ${calculatedEmployees.length} employees. Total Gross: ₦${totals.gross.toLocaleString()}, Net Salaries: ₦${totals.net.toLocaleString()}, Total Statutory Withholdings: ₦${(totals.tax + totals.pension + totals.nhf + (totals.nhis || 0)).toLocaleString()}.`
+    : `Computed initial payroll draft for ${month}/${year} across ${calculatedEmployees.length} employees. Total Gross: ₦${totals.gross.toLocaleString()}, Net Salaries: ₦${totals.net.toLocaleString()}, Total Statutory Withholdings: ₦${(totals.tax + totals.pension + totals.nhf + (totals.nhis || 0)).toLocaleString()}.`;
+
   // 5. Update existing draft run or create a new one
   if (existingRun) {
     existingRun.processedBy = req.user._id;
     existingRun.totals = totals;
     existingRun.employees = calculatedEmployees;
+    existingRun.addAuditEvent({
+      event: 'COMPUTED',
+      title: 'Payroll Recalculated',
+      description: auditMsg,
+      performedBy: {
+        userId: req.user._id,
+        userName: operatorName,
+        userRole: req.user.role
+      },
+      metadata: {
+        headcount: calculatedEmployees.length,
+        amount: totals.gross,
+        netSalaries: totals.net,
+        totalStatutory: totals.tax + totals.pension + totals.nhf + (totals.nhis || 0)
+      }
+    });
     run = await existingRun.save();
   } else {
-    run = await PayrollRun.create({
+    run = new PayrollRun({
       companyId: req.companyId,
       month,
       year,
@@ -169,6 +190,23 @@ exports.computePayroll = catchAsync(async (req, res) => {
       totals,
       employees: calculatedEmployees
     });
+    run.addAuditEvent({
+      event: 'COMPUTED',
+      title: 'Payroll Draft Computed',
+      description: auditMsg,
+      performedBy: {
+        userId: req.user._id,
+        userName: operatorName,
+        userRole: req.user.role
+      },
+      metadata: {
+        headcount: calculatedEmployees.length,
+        amount: totals.gross,
+        netSalaries: totals.net,
+        totalStatutory: totals.tax + totals.pension + totals.nhf + (totals.nhis || 0)
+      }
+    });
+    await run.save();
   }
 
   // 6. Auto-create compliance records for the next month's obligations (PAYE, pension, NSITF)
@@ -337,6 +375,24 @@ exports.updateAttendance = catchAsync(async (req, res) => {
     itf: round(totals.itf || 0),
     net: round(totals.net)
   };
+
+  const operatorName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+  const totalAbsences = run.employees.reduce((acc, e) => acc + (e.daysAbsent || 0) + ((e.halfDays || 0) * 0.5), 0);
+  run.addAuditEvent({
+    event: 'ATTENDANCE_ADJUSTED',
+    title: 'Attendance Proration Updated',
+    description: `Manual attendance adjustments updated. Total calculated absences: ${totalAbsences} day(s). Recalculated gross payroll to ₦${run.totals.gross.toLocaleString()} and net salaries to ₦${run.totals.net.toLocaleString()}.`,
+    performedBy: {
+      userId: req.user._id,
+      userName: operatorName,
+      userRole: req.user.role
+    },
+    metadata: {
+      daysAbsentTotal: totalAbsences,
+      amount: run.totals.gross,
+      netSalaries: run.totals.net
+    }
+  });
 
   const updatedRun = await run.save();
 
@@ -555,6 +611,25 @@ exports.uploadAttendanceCsv = catchAsync(async (req, res) => {
     net: round(totals.net)
   };
 
+  const operatorName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+  const totalAbsences = run.employees.reduce((acc, e) => acc + (e.daysAbsent || 0) + ((e.halfDays || 0) * 0.5), 0);
+  run.addAuditEvent({
+    event: 'ATTENDANCE_ADJUSTED',
+    title: 'Attendance CSV Ingested',
+    description: `Biometric/attendance CSV processed. ${updated.length} employee records updated with attendance proration. Total absences: ${totalAbsences} day(s). Recalculated gross: ₦${run.totals.gross.toLocaleString()}, net salaries: ₦${run.totals.net.toLocaleString()}.`,
+    performedBy: {
+      userId: req.user._id,
+      userName: operatorName,
+      userRole: req.user.role
+    },
+    metadata: {
+      headcount: updated.length,
+      daysAbsentTotal: totalAbsences,
+      amount: run.totals.gross,
+      netSalaries: run.totals.net
+    }
+  });
+
   await run.save();
 
   const populatedRun = await PayrollRun.findById(run._id).populate('employees.employeeId');
@@ -590,6 +665,26 @@ exports.approvePayroll = catchAsync(async (req, res) => {
   }
 
   run.status = PAYROLL_STATUS.APPROVED;
+  run.approvedBy = req.user._id;
+  run.approvedAt = new Date();
+
+  const operatorName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+  run.addAuditEvent({
+    event: 'APPROVED',
+    title: 'Payroll Run Approved',
+    description: `Payroll run for ${run.month}/${run.year} formally approved and locked by ${operatorName} (${req.user.role.toUpperCase()}). Net salaries (₦${(run.totals?.net || 0).toLocaleString()}) and statutory deductions unlocked for disbursement.`,
+    performedBy: {
+      userId: req.user._id,
+      userName: operatorName,
+      userRole: req.user.role
+    },
+    metadata: {
+      amount: run.totals?.gross || 0,
+      netSalaries: run.totals?.net || 0,
+      totalStatutory: (run.totals?.tax || 0) + (run.totals?.pension || 0) + (run.totals?.nhf || 0) + (run.totals?.nhis || 0)
+    }
+  });
+
   const approvedRun = await run.save();
 
   return sendSuccess(res, 'Payroll run approved successfully', { run: approvedRun });
@@ -616,7 +711,28 @@ exports.payPayroll = catchAsync(async (req, res) => {
     return sendError(res, 'Payroll run is already processed as paid', 400);
   }
 
+  const operatorName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
   run.status = PAYROLL_STATUS.PAID;
+  run.paidAt = new Date();
+  run.settlementReference = run.settlementReference || `MANUAL-${Date.now()}`;
+
+  run.addAuditEvent({
+    event: 'PAYMENT_SETTLED',
+    title: 'Payroll Disbursed as Paid',
+    description: `Direct salary payment confirmed by ${operatorName} (${req.user.role.toUpperCase()}). Net salaries (₦${(run.totals?.net || 0).toLocaleString()}) marked as settled to employee bank accounts.`,
+    performedBy: {
+      userId: req.user._id,
+      userName: operatorName,
+      userRole: req.user.role
+    },
+    metadata: {
+      amount: run.totals?.gross || 0,
+      netSalaries: run.totals?.net || 0,
+      paymentReference: run.settlementReference,
+      channel: 'Direct Commercial Bank Transfer'
+    }
+  });
+
   const paidRun = await run.save();
 
   return sendSuccess(res, 'Payroll run processed as paid successfully', { run: paidRun });
@@ -628,7 +744,8 @@ exports.payPayroll = catchAsync(async (req, res) => {
 exports.getPayrollRuns = catchAsync(async (req, res) => {
   const runs = await PayrollRun.find({ companyId: req.companyId })
     .select('-employees') // Exclude heavy detail in list views
-    .sort({ year: -1, month: -1 });
+    .sort({ year: -1, month: -1 })
+    .lean();
 
   return sendSuccess(res, 'Payroll runs retrieved successfully', { runs });
 });
@@ -640,17 +757,20 @@ exports.getPayrollRunById = catchAsync(async (req, res) => {
   const run = await PayrollRun.findOne({
     _id: req.params.id,
     companyId: req.companyId
-  }).populate('employees.employeeId');
+  })
+    .populate('employees.employeeId')
+    .populate('processedBy', 'firstName lastName email role')
+    .populate('approvedBy', 'firstName lastName email role')
+    .lean();
 
   if (!run) {
     return sendError(res, 'Payroll run not found', 404);
   }
 
-  const runObj = run.toObject();
+  const runObj = run;
 
-  runObj.employees = runObj.employees.map((pe, idx) => {
-    const originalPe = run.employees[idx];
-    const emp = originalPe.employeeId;
+  runObj.employees = (runObj.employees || []).map((pe) => {
+    const emp = pe.employeeId;
     const empId = emp ? (emp._id ? emp._id.toString() : emp.toString()) : '';
     return {
       ...pe,
@@ -845,4 +965,161 @@ exports.getPaymentFileExcel = catchAsync(async (req, res) => {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   return res.status(200).send(buffer);
+});
+
+/**
+ * GET /api/payroll/:id/reconciliation
+ * Generates full post-payroll reconciliation & clearing statement, numbers check,
+ * and immutable audit/settlement trail.
+ */
+exports.getReconciliationSummary = catchAsync(async (req, res) => {
+  const run = await PayrollRun.findOne({
+    _id: req.params.id,
+    companyId: req.companyId
+  })
+    .populate('employees.employeeId')
+    .populate('processedBy', 'firstName lastName email role')
+    .populate('approvedBy', 'firstName lastName email role')
+    .lean();
+
+  if (!run) {
+    return sendError(res, 'Payroll run not found', 404);
+  }
+
+  const { aggregatePayrollRouting } = require('../config/billerRegistry');
+  const Disbursement = require('../models/Disbursement');
+  const ComplianceRecord = require('../models/ComplianceRecord');
+
+  const disbursement = await Disbursement.findOne({
+    payrollRunId: run._id,
+    companyId: req.companyId
+  }).lean();
+
+  const routingData = aggregatePayrollRouting(run.employees);
+
+  // 1. Headcount & Attendance Proration Reconciliation
+  const totalEmployees = run.employees.length;
+  const workingDaysInMonth = run.employees[0]?.workingDaysInMonth || 0;
+  const totalEmployeeWorkingDays = run.employees.reduce((acc, e) => acc + (e.workingDaysInMonth || 0), 0);
+  const totalDaysWorked = round(run.employees.reduce((acc, e) => acc + (e.daysWorked || 0), 0));
+  const totalDaysAbsent = round(run.employees.reduce((acc, e) => acc + (e.daysAbsent || 0) + ((e.halfDays || 0) * 0.5), 0));
+  const standardGrossBudget = round(run.employees.reduce((acc, e) => acc + (e.grossSalary || 0), 0));
+  const earnedGrossActual = round(run.employees.reduce((acc, e) => acc + (e.proratedGross || 0), 0));
+  const prorationSavings = round(standardGrossBudget - earnedGrossActual);
+
+  // 2. Net Salaries Disbursed
+  const netSalaries = round(run.totals?.net || 0);
+
+  // 3. Employee Statutory Withholdings
+  const payeTax = round(run.totals?.tax || 0);
+  const employeePension = round(run.totals?.pension || 0);
+  const employeeNhf = round(run.totals?.nhf || 0);
+  const employeeNhis = round(run.totals?.nhis || 0);
+  const totalEmployeeDeductions = round(payeTax + employeePension + employeeNhf + employeeNhis);
+
+  // Verification 1: Earned Gross - Deductions === Net Salary
+  const netVerificationDiff = round(earnedGrossActual - totalEmployeeDeductions - netSalaries);
+
+  // 4. Employer Overhead Burden
+  const employerPension = round(run.totals?.employerPension || 0);
+  const employerNhis = round(run.totals?.employerNhis || 0);
+  const nsitf = round(run.totals?.nsitf || 0);
+  const itf = round(run.totals?.itf || 0);
+  const totalEmployerOverheads = round(employerPension + employerNhis + nsitf + itf);
+
+  // 5. Total Statutory Clearing Outflow & Total Company Cash Outflow
+  const totalStatutoryRemittances = round(totalEmployeeDeductions + totalEmployerOverheads);
+  const totalCashOutflow = round(netSalaries + totalStatutoryRemittances);
+
+  // Verification 2: Grand Total Cash === Earned Gross + Employer Overheads
+  const grandTotalExpected = round(earnedGrossActual + totalEmployerOverheads);
+  const clearingVariance = round(grandTotalExpected - totalCashOutflow);
+  const isMathematicallyBalanced = Math.abs(clearingVariance) < 0.05 && Math.abs(netVerificationDiff) < 0.05;
+
+  // 6. Linked Compliance Obligations (Next month's deadlines)
+  const nextMonth = Number(run.month) === 12 ? 1 : Number(run.month) + 1;
+  const nextYear = Number(run.month) === 12 ? Number(run.year) + 1 : Number(run.year);
+
+  const complianceRecords = await ComplianceRecord.find({
+    companyId: req.companyId,
+    month: nextMonth,
+    year: nextYear
+  }).populate('obligationId').lean();
+
+  // Format compliance records status
+  const statutoryObligations = complianceRecords.map((rec) => ({
+    type: rec.obligationId?.remittanceType || 'Statutory',
+    authority: rec.obligationId?.authority || 'Regulatory Body',
+    dueDate: rec.obligationId?.dueDate,
+    status: rec.status,
+    completedAt: rec.completedAt,
+    notes: rec.notes
+  }));
+
+  // Build sorted audit trail (newest first for immediate visibility)
+  const auditTrail = (run.auditTrail || []).slice().sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  return sendSuccess(res, 'Monthly payroll reconciliation summary retrieved successfully', {
+    runId: run._id,
+    period: {
+      month: run.month,
+      year: run.year,
+      status: run.status,
+      approvedAt: run.approvedAt,
+      paidAt: run.paidAt,
+      settlementReference: run.settlementReference || (disbursement?.rrrs?.find(r => r.status === 'paid')?.remitaPaymentReference) || null,
+      processedBy: run.processedBy,
+      approvedBy: run.approvedBy
+    },
+    headcountAndAttendance: {
+      totalEmployees,
+      workingDaysInMonth,
+      totalEmployeeWorkingDays,
+      totalDaysWorked,
+      totalDaysAbsent,
+      standardGrossBudget,
+      earnedGrossActual,
+      prorationSavings,
+      hasAttendanceAdjustments: totalDaysAbsent > 0
+    },
+    financialBalancing: {
+      standardGrossBudget,
+      earnedGrossActual,
+      prorationSavings,
+      netSalaries,
+      employeeDeductions: {
+        payeTax,
+        employeePension,
+        employeeNhf,
+        employeeNhis,
+        total: totalEmployeeDeductions
+      },
+      employerOverheads: {
+        employerPension,
+        employerNhis,
+        nsitf,
+        itf,
+        total: totalEmployerOverheads
+      },
+      totalStatutoryRemittances,
+      totalCashOutflow,
+      netVerificationDiff,
+      clearingVariance,
+      isMathematicallyBalanced
+    },
+    routingBreakdown: routingData.routing,
+    disbursementDetails: disbursement ? {
+      paymentMode: disbursement.paymentMode,
+      status: disbursement.status,
+      totalOutflow: disbursement.totalOutflow,
+      totalSalaries: disbursement.totalSalaries,
+      totalStatutory: disbursement.totalStatutory,
+      pspBatchToken: run.PspBatchToken || disbursement.pspBatchToken,
+      pspValidationStatus: run.PspValidationStatus,
+      stateBillReferences: disbursement.stateBillReferences,
+      rrrs: disbursement.rrrs || []
+    } : null,
+    statutoryObligations,
+    auditTrail
+  });
 });

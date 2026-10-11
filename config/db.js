@@ -20,7 +20,12 @@ const connectDB = async () => {
   }
   
   try {
-    const conn = await mongoose.connect(connUri);
+    const conn = await mongoose.connect(connUri, {
+      maxPoolSize: 10, // Maintain up to 10 socket connections (protects Atlas M0 free tier limits)
+      minPoolSize: 2,  // Keep minimum warm connections to prevent handshake latency
+      serverSelectionTimeoutMS: 5000, // Timeout fast after 5s on network issues
+      socketTimeoutMS: 45000 // Close idle sockets after 45s
+    });
     console.log(`MongoDB Connected: ${conn.connection.host} (${conn.connection.name})`);
   } catch (error) {
     console.error(`Error connecting to MongoDB: ${error.message}`);

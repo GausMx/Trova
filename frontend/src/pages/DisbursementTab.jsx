@@ -84,6 +84,27 @@ export default function DisbursementTab({ payrollRun, isApprovedOrPaid }) {
       queryClient.invalidateQueries({ queryKey: ['disbursementSummary', payrollRun._id] });
       queryClient.invalidateQueries({ queryKey: ['payrollRuns'] });
       queryClient.invalidateQueries({ queryKey: ['payrollRunDetails', payrollRun._id] });
+      queryClient.invalidateQueries({ queryKey: ['payrollReconciliation', payrollRun._id] });
+    },
+    onError: (err) => {
+      setActionError(err.response?.data?.message || err.message);
+    }
+  });
+
+  // 4. Simulate Payment Mutation (Sandbox Testing)
+  const simulatePaymentMutation = useMutation({
+    mutationFn: async (rrr) => {
+      const res = await api.post(`/disbursements/payroll/${payrollRun._id}/simulate-payment`, { rrr });
+      return res.data;
+    },
+    onSuccess: () => {
+      setActionError('');
+      queryClient.invalidateQueries({ queryKey: ['disbursementSummary', payrollRun._id] });
+      queryClient.invalidateQueries({ queryKey: ['payrollRuns'] });
+      queryClient.invalidateQueries({ queryKey: ['payrollRunDetails', payrollRun._id] });
+      queryClient.invalidateQueries({ queryKey: ['payrollReconciliation', payrollRun._id] });
+      queryClient.invalidateQueries({ queryKey: ['complianceSummary'] });
+      queryClient.invalidateQueries({ queryKey: ['complianceCalendar'] });
     },
     onError: (err) => {
       setActionError(err.response?.data?.message || err.message);
@@ -605,17 +626,31 @@ export default function DisbursementTab({ payrollRun, isApprovedOrPaid }) {
                         <p className="font-bold text-slate-800">₦{(item.amount || 0).toLocaleString()}</p>
                       </div>
 
-                      {item.beneficiaryDetails?.paymentUrl && (
-                        <a
-                          href={item.beneficiaryDetails.paymentUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3 py-1.5 bg-forest-700 hover:bg-forest-800 text-white font-bold rounded-lg text-xs transition-colors flex items-center space-x-1"
-                        >
-                          <span>Pay via Remita</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
+                      <div className="flex items-center space-x-2">
+                        {item.status !== 'paid' && (
+                          <button
+                            onClick={() => simulatePaymentMutation.mutate(item.rrr)}
+                            disabled={simulatePaymentMutation.isPending}
+                            className="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg text-xs transition-colors flex items-center space-x-1 shadow-sm disabled:opacity-50"
+                            title="Simulate Remita Webhook Settlement (Sandbox Mode)"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>{simulatePaymentMutation.isPending ? 'Settling...' : 'Simulate Settlement'}</span>
+                          </button>
+                        )}
+
+                        {item.beneficiaryDetails?.paymentUrl && (
+                          <a
+                            href={item.beneficiaryDetails.paymentUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 bg-forest-700 hover:bg-forest-800 text-white font-bold rounded-lg text-xs transition-colors flex items-center space-x-1"
+                          >
+                            <span>Pay via Remita</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

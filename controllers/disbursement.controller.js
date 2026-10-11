@@ -15,7 +15,7 @@ exports.getDisbursementSummary = catchAsync(async (req, res) => {
   const run = await PayrollRun.findOne({
     _id: req.params.payrollRunId,
     companyId: req.companyId
-  }).populate('employees.employeeId');
+  }).populate('employees.employeeId').lean();
 
   if (!run) {
     return sendError(res, 'Payroll run not found', 404);
@@ -28,7 +28,7 @@ exports.getDisbursementSummary = catchAsync(async (req, res) => {
   const existingDisbursement = await Disbursement.findOne({
     payrollRunId: run._id,
     companyId: req.companyId
-  });
+  }).lean();
 
   return sendSuccess(res, 'Disbursement summary retrieved successfully', {
     payrollRun: {
@@ -61,10 +61,29 @@ exports.validatePensionPssp = catchAsync(async (req, res) => {
   }
 
   const result = await pensionPsspService.submitPensionSchedule(run, req.company);
-
+  const operatorName = `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email || 'System';
   run.PspBatchToken = result.batchToken;
   run.PspValidationStatus = result.validationStatus;
   run.PspValidationErrors = result.errors || [];
+
+  run.addAuditEvent({
+    event: 'PSSP_VALIDATED',
+    title: result.success ? 'PenCom PSSP Schedule Validated' : 'PenCom PSSP Validation Failed',
+    description: result.success
+      ? `PenCom PSSP schedule validation passed. Batch Token: ${result.batchToken}. Verified ${run.employees.length} employee records with approved PFAs.`
+      : `PenCom PSSP validation encountered errors with RSA PINs / PFAs: ${(result.errors || []).map(e => e.error).join('; ')}`,
+    performedBy: {
+      userId: req.user?._id,
+      userName: operatorName,
+      userRole: req.user?.role || 'FINANCE'
+    },
+    metadata: {
+      pspBatchToken: result.batchToken,
+      pspValidationStatus: result.validationStatus,
+      errorsCount: (result.errors || []).length
+    }
+  });
+
   await run.save();
 
   if (!result.success) {
@@ -308,6 +327,26 @@ exports.generateRRR = catchAsync(async (req, res) => {
     });
   }
 
+  const operatorName = `${req.user?.firstName || ''} ${req.user?.lastName || ''}`.trim() || req.user?.email || 'System';
+  run.addAuditEvent({
+    event: 'RRR_GENERATED',
+    title: `Remita ${paymentMode === 'unified' ? 'Master Unified' : 'Split'} RRR Generated`,
+    description: `Generated Remita RRR(s): ${generatedRrrs.map((r) => `${r.category.toUpperCase()} (${r.rrr})`).join(', ')}. Total Funding Required: ₦${summary.totalOutflow.toLocaleString()} (Net Salaries: ₦${summary.netSalaries.toLocaleString()}, Total Statutory: ₦${summary.totalStatutory.toLocaleString()}).`,
+    performedBy: {
+      userId: req.user?._id,
+      userName: operatorName,
+      userRole: req.user?.role || 'FINANCE'
+    },
+    metadata: {
+      amount: summary.totalOutflow,
+      netSalaries: summary.netSalaries,
+      totalStatutory: summary.totalStatutory,
+      paymentMode,
+      rrr: generatedRrrs.map((r) => r.rrr).join(', ')
+    }
+  });
+  await run.save();
+
   return sendSuccess(res, `RRR generated successfully in ${paymentMode} mode`, {
     disbursement
   });
@@ -321,7 +360,7 @@ exports.getDisbursementStatus = catchAsync(async (req, res) => {
   const disbursement = await Disbursement.findOne({
     payrollRunId: req.params.payrollRunId,
     companyId: req.companyId
-  }).populate('payrollRunId', 'month year status');
+  }).populate('payrollRunId', 'month year status').lean();
 
   if (!disbursement) {
     return sendError(res, 'No disbursement RRR record found for this payroll run.', 404);
@@ -493,6 +532,23 @@ exports.processRemitaWebhook = catchAsync(async (req, res) => {
     const payrollRun = await PayrollRun.findById(disbursement.payrollRunId);
     if (payrollRun && salariesPaid) {
       payrollRun.status = PAYROLL_STATUS.PAID;
+      payrollRun.paidAt = new Date();
+      payrollRun.settlementReference = paymentReference || channel || `REM-${Date.now()}`;
+      payrollRun.addAuditEvent({
+        event: 'PAYMENT_SETTLED',
+        title: 'Payment Settlement Confirmed via Remita',
+        description: `Settlement confirmed via Remita Webhook for RRR ${targetRrr} (${rrrItem.category.toUpperCase()}). Payment Reference: ${payrollRun.settlementReference}, Channel: ${channel || 'Online / Bank'}. Payroll status updated to PAID and statutory compliance deadlines auto-reconciled.`,
+        performedBy: {
+          userName: 'Remita Payment Gateway',
+          userRole: 'WEBHOOK'
+        },
+        metadata: {
+          rrr: targetRrr,
+          amount: rrrItem.amount,
+          paymentReference: payrollRun.settlementReference,
+          channel: channel || 'Online / Bank'
+        }
+      });
       await payrollRun.save();
 
       // 2. Auto-Reconcile ComplianceRecords for PAYE, Pension, NSITF, NHF
@@ -527,4 +583,40 @@ exports.processRemitaWebhook = catchAsync(async (req, res) => {
     rrr: targetRrr,
     disbursementStatus: disbursement.status
   });
+});
+
+/**
+ * POST /api/disbursements/payroll/:payrollRunId/simulate-payment
+ * Sandbox/Test simulation helper: triggers the Remita webhook logic to confirm payment
+ * on a generated RRR without needing live bank transfers.
+ */
+exports.simulatePaymentConfirmation = catchAsync(async (req, res) => {
+  const { rrr } = req.body;
+  const disbursement = await Disbursement.findOne({
+    payrollRunId: req.params.payrollRunId,
+    companyId: req.companyId
+  });
+
+  if (!disbursement) {
+    return sendError(res, 'Disbursement record not found for this payroll run', 404);
+  }
+
+  const targetRrrItem = rrr
+    ? disbursement.rrrs.find((r) => r.rrr === rrr)
+    : disbursement.rrrs[0];
+
+  if (!targetRrrItem) {
+    return sendError(res, 'No generated RRR found to simulate payment for', 400);
+  }
+
+  // Inject mock successful payload into request body and invoke webhook handler
+  req.body = {
+    rrr: targetRrrItem.rrr,
+    status: '00',
+    statuscode: '00',
+    channel: 'Remita Sandbox Gateway (Simulated)',
+    paymentReference: `SIM-REM-${Date.now()}`
+  };
+
+  return exports.processRemitaWebhook(req, res);
 });

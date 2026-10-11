@@ -17,26 +17,41 @@ const generateTaxProMaxCsv = (payrollRun) => {
   const periodLabel = `${monthNames[payrollRun.month - 1]} ${payrollRun.year}`;
 
   const headers = [
-    'Employee TIN',
     'Staff ID',
-    'Employee Name',
+    'Employee Full Name',
+    'Employee TIN',
     'State of Residence (Tax Authority)',
-    'Gross Salary (NGN)',
-    'Prorated Gross (NGN)',
-    'PAYE Tax Amount (NGN)',
-    'Remittance Month'
+    'Gross Pay (NGN)',
+    'Allowable Deductions (NGN)',
+    'Taxable Pay (NGN)',
+    'Monthly PAYE Tax (NGN)',
+    'Remittance Period'
   ];
 
   const rows = (payrollRun.employees || []).map((pe) => {
     const emp = pe.employeeId || {};
+    const gross = pe.proratedGross || pe.grossSalary || 0;
+    const pension = pe.pensionDeduction || 0;
+    const nhf = pe.nhfDeduction || 0;
+    const nhis = pe.nhisDeduction || 0;
+
+    const annualRent = emp.annualRentPaid || 0;
+    const monthlyRentRelief = Math.min(annualRent * 0.20, 500000) / 12;
+    const monthlyLifeInsurance = (emp.annualLifeInsurance || 0) / 12;
+
+    const allowableDeductions = pension + nhf + nhis + monthlyRentRelief + monthlyLifeInsurance;
+    const taxablePay = Math.max(0, gross - allowableDeductions);
+    const tax = pe.taxDeduction || 0;
+
     return [
-      emp.tin || 'N/A',
       pe.staffId || emp.staffId || '',
       pe.name || emp.fullName || '',
+      emp.tin || 'N/A',
       emp.stateOfWork || 'Lagos',
-      (pe.grossSalary || 0).toFixed(2),
-      (pe.proratedGross || 0).toFixed(2),
-      (pe.taxDeduction || 0).toFixed(2),
+      gross.toFixed(2),
+      allowableDeductions.toFixed(2),
+      taxablePay.toFixed(2),
+      tax.toFixed(2),
       periodLabel
     ];
   });
